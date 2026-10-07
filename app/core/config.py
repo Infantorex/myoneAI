@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     vad_energy_threshold: float = Field(default=500.0, description="VAD RMS energy trigger threshold")
     vad_silence_duration: float = Field(default=1.5, description="Silence duration to end speech (seconds)")
 
+    # Voice Pipeline & Conversation Loop Settings (Phase 5)
+    voice_language: str = Field(default="ta-IN", description="Primary spoken language code for conversation loop")
+    voice_listen_timeout: float = Field(default=15.0, description="Listening timeout for utterance in seconds")
+    voice_interactive_mode: bool = Field(default=False, description="Whether conversation runs continuously in interactive mode")
+    stt_timeout: float = Field(default=30.0, description="STT transcription timeout in seconds")
+
     # Text-to-Speech (TTS) Settings
     tts_provider: str = Field(default="edge-tts", description="TTS provider (edge-tts, mock)")
     tts_api_key: Optional[str] = Field(default=None, description="TTS API key if required")

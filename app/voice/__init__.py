@@ -1,8 +1,10 @@
 """Voice module for myoneAI / Tamil JARVIS.
 
 Provides provider-independent interfaces for Tamil/English STT, TTS, audio playback,
-microphone capture, VAD, and wake-word detection.
+microphone capture, VAD, wake-word detection, and natural voice conversation loop.
 """
+
+from typing import TYPE_CHECKING, Any
 
 from app.voice.audio import AudioPlayer, audio_player
 from app.voice.audio_config import AudioConfig, DEFAULT_AUDIO_CONFIG
@@ -52,11 +54,30 @@ from app.voice.vad import VADState, VoiceActivityDetector
 from app.voice.voice_manager import VoiceManager
 from app.voice.wake_word import BaseWakeWord
 
+if TYPE_CHECKING:
+    from app.voice.conversation import (
+        VoiceConversationManager,
+        VoiceLoopState,
+        voice_conversation_manager,
+    )
+
+
+def __getattr__(name: str) -> Any:
+    """Lazy load conversation loop symbols to prevent runpy circular module warnings."""
+    if name in ("VoiceConversationManager", "VoiceLoopState", "voice_conversation_manager"):
+        import app.voice.conversation as conv
+        return getattr(conv, name)
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+
 __all__ = [
     "AudioConfig",
     "DEFAULT_AUDIO_CONFIG",
     "AudioPlayer",
     "audio_player",
+    "VoiceConversationManager",
+    "VoiceLoopState",
+    "voice_conversation_manager",
     "VoiceError",
     "MicrophoneError",
     "MicrophoneNotFoundError",
