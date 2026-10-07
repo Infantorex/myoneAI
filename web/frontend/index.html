@@ -42,6 +42,10 @@
           <h1 class="page-title" id="page-title">Dashboard</h1>
         </div>
         <div class="topbar-right">
+          <div class="status-badge idle" id="cloud-status-badge" title="Vercel Cloud Sync State">
+            <span class="status-dot"></span>
+            <span id="cloud-status-text">CLOUD: LOCAL</span>
+          </div>
           <div class="status-badge idle" id="assistant-status-badge">
             <span class="status-dot"></span>
             <span id="assistant-status-text">IDLE</span>
@@ -408,6 +412,14 @@
               <div style="margin-bottom:14px;">
                 <div class="form-label">Binding Network Interface</div>
                 <div style="color:var(--text-secondary);">127.0.0.1 (Strict Localhost Only)</div>
+              </div>
+              <div style="margin-bottom:14px;">
+                <div class="form-label">Vercel Cloud Sync (Phase 12)</div>
+                <div id="settings-cloud-status" style="font-weight:600; color:var(--text-secondary);">DISABLED (Local Only)</div>
+              </div>
+              <div style="margin-bottom:14px;">
+                <div class="form-label">Cloud Device ID</div>
+                <div id="settings-cloud-device-id" style="color:var(--text-muted); font-size:12px; font-family:monospace;">--</div>
               </div>
             </div>
 

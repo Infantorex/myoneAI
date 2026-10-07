@@ -142,6 +142,19 @@ class Settings(BaseSettings):
     web_chat_max_length: int = Field(default=2000, description="Maximum characters allowed in web chat messages")
     web_api_url: str = Field(default="http://localhost:8000", description="Backend/Vercel API URL")
 
+    # Secure Laptop <-> Vercel Cloud Settings (Phase 12)
+    cloud_enabled: bool = Field(default=False, description="Enable secure laptop to cloud synchronization")
+    cloud_api_url: str = Field(default="", description="Base URL for cloud control plane API (HTTPS/WSS)")
+    cloud_device_id: str = Field(default="", description="Unique device ID registered with cloud control plane")
+    cloud_device_name: str = Field(default="MyOneAI-Laptop", description="Friendly device identifier")
+    cloud_auth_token: str = Field(default="", description="Secret auth token / HMAC key for cloud communication")
+    cloud_heartbeat_interval: int = Field(default=30, description="Interval in seconds between cloud heartbeats")
+    cloud_request_timeout: float = Field(default=15.0, description="Timeout in seconds for cloud requests")
+    cloud_reconnect_min: float = Field(default=2.0, description="Minimum exponential backoff reconnect seconds")
+    cloud_reconnect_max: float = Field(default=60.0, description="Maximum exponential backoff reconnect seconds")
+    cloud_queue_max_size: int = Field(default=100, description="Maximum buffered offline events")
+    cloud_tls_required: bool = Field(default=True, description="Enforce HTTPS/WSS for cloud connections")
+
     # Directories
     base_dir: Path = Field(default=PROJECT_ROOT, description="Base directory path")
 
@@ -182,7 +195,7 @@ class Settings(BaseSettings):
     def get_safe_dict(self) -> dict:
         """Return dictionary representation with sensitive credentials masked."""
         data = self.model_dump()
-        for key in ["ai_api_key", "stt_api_key", "tts_api_key", "wake_word_api_key", "web_auth_token"]:
+        for key in ["ai_api_key", "stt_api_key", "tts_api_key", "wake_word_api_key", "web_auth_token", "cloud_auth_token"]:
             val = data.get(key)
             if val:
                 masked = f"{val[:4]}...{val[-4:]}" if len(val) > 8 else "***"

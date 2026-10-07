@@ -120,6 +120,8 @@ def create_app() -> FastAPI:
 
     # 4. Include all API sub-routers
     app.include_router(api_router)
+    from web.cloud.api import cloud_router
+    app.include_router(cloud_router)
 
     # 5. Serve Frontend Static Files
     if FRONTEND_DIR.exists():

@@ -28,4 +28,7 @@ async def get_safe_settings(settings: Settings = Depends(get_settings)) -> SafeS
         memory_enabled=settings.memory_enabled,
         productivity_enabled=settings.productivity_enabled,
         tools_enabled=settings.tools_enabled,
+        cloud_enabled=settings.cloud_enabled,
+        cloud_device_id=settings.cloud_device_id,
+        cloud_api_url=settings.cloud_api_url,
     )

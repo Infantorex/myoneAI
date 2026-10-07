@@ -227,3 +227,6 @@ class SafeSettingsResponse(BaseModel):
     memory_enabled: bool
     productivity_enabled: bool
     tools_enabled: bool
+    cloud_enabled: bool = False
+    cloud_device_id: str = ""
+    cloud_api_url: str = ""

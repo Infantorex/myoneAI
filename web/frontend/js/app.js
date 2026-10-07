@@ -705,6 +705,28 @@ async function loadSettings() {
       authState.style.color = cfg.web_auth_enabled ? "var(--accent-green)" : "var(--accent-yellow)";
     }
 
+    const cloudStatus = document.getElementById("settings-cloud-status");
+    const cloudBadge = document.getElementById("cloud-status-badge");
+    const cloudText = document.getElementById("cloud-status-text");
+    const cloudDeviceId = document.getElementById("settings-cloud-device-id");
+
+    if (cloudStatus) {
+      cloudStatus.textContent = cfg.cloud_enabled ? "ENABLED (Connecting / Active)" : "DISABLED (Local Only)";
+      cloudStatus.style.color = cfg.cloud_enabled ? "var(--accent-cyan)" : "var(--text-secondary)";
+    }
+    if (cloudBadge && cloudText) {
+      if (cfg.cloud_enabled) {
+        cloudBadge.className = "status-badge listening";
+        cloudText.textContent = "CLOUD: ACTIVE";
+      } else {
+        cloudBadge.className = "status-badge idle";
+        cloudText.textContent = "CLOUD: LOCAL";
+      }
+    }
+    if (cloudDeviceId) {
+      cloudDeviceId.textContent = cfg.cloud_device_id || "Local Anonymous Identity";
+    }
+
     const tokenInput = document.getElementById("settings-token-input");
     if (tokenInput) {
       tokenInput.value = authToken;
