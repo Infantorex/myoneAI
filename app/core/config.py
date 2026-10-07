@@ -63,6 +63,19 @@ class Settings(BaseSettings):
     voice_interactive_mode: bool = Field(default=False, description="Whether conversation runs continuously in interactive mode")
     stt_timeout: float = Field(default=30.0, description="STT transcription timeout in seconds")
 
+    # Wake Word Settings (Phase 6)
+    wake_word_enabled: bool = Field(default=True, description="Enable background wake word listener")
+    wake_word: str = Field(default="jarvis", description="Configurable wake phrase")
+    wake_word_language: str = Field(default="en-US", description="Wake word recognition language")
+    wake_word_sensitivity: float = Field(default=0.5, description="Wake word sensitivity threshold (0.0 - 1.0)")
+    wake_word_timeout: float = Field(default=1.0, description="Wake word detection chunk timeout in seconds")
+    wake_word_cooldown: float = Field(default=1.5, description="Debounce cooldown between wake detections in seconds")
+    wake_response_enabled: bool = Field(default=True, description="Speak a short acknowledgment upon wake word detection")
+    wake_response_text: str = Field(default="சொல்லுங்க.", description="Acknowledgment response text (Tamil or English)")
+    wake_word_on_battery: bool = Field(default=True, description="Whether wake word runs when on battery power")
+    wake_word_provider: str = Field(default="local", description="Wake word engine (local, mock, energy)")
+    wake_word_api_key: Optional[str] = Field(default=None, description="Wake word provider API key if applicable")
+
     # Text-to-Speech (TTS) Settings
     tts_provider: str = Field(default="edge-tts", description="TTS provider (edge-tts, mock)")
     tts_api_key: Optional[str] = Field(default=None, description="TTS API key if required")
@@ -106,7 +119,7 @@ class Settings(BaseSettings):
     def get_safe_dict(self) -> dict:
         """Return dictionary representation with sensitive credentials masked."""
         data = self.model_dump()
-        for key in ["ai_api_key", "stt_api_key", "tts_api_key"]:
+        for key in ["ai_api_key", "stt_api_key", "tts_api_key", "wake_word_api_key"]:
             val = data.get(key)
             if val:
                 masked = f"{val[:4]}...{val[-4:]}" if len(val) > 8 else "***"

@@ -60,13 +60,30 @@ if TYPE_CHECKING:
         VoiceLoopState,
         voice_conversation_manager,
     )
+    from app.voice.wakeword_manager import (
+        WakeWordManager,
+        WakeWordState,
+        wake_word_manager,
+    )
+    from app.voice.wakeword_provider import (
+        BaseWakeWordProvider,
+        LocalWakeWordProvider,
+        MockWakeWordProvider,
+        get_wakeword_provider,
+    )
 
 
 def __getattr__(name: str) -> Any:
-    """Lazy load conversation loop symbols to prevent runpy circular module warnings."""
+    """Lazy load conversation and wakeword symbols to prevent circular import warnings."""
     if name in ("VoiceConversationManager", "VoiceLoopState", "voice_conversation_manager"):
         import app.voice.conversation as conv
         return getattr(conv, name)
+    elif name in ("WakeWordManager", "WakeWordState", "wake_word_manager"):
+        import app.voice.wakeword_manager as wwm
+        return getattr(wwm, name)
+    elif name in ("BaseWakeWordProvider", "LocalWakeWordProvider", "MockWakeWordProvider", "get_wakeword_provider"):
+        import app.voice.wakeword_provider as wwp
+        return getattr(wwp, name)
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
@@ -78,6 +95,13 @@ __all__ = [
     "VoiceConversationManager",
     "VoiceLoopState",
     "voice_conversation_manager",
+    "WakeWordManager",
+    "WakeWordState",
+    "wake_word_manager",
+    "BaseWakeWordProvider",
+    "LocalWakeWordProvider",
+    "MockWakeWordProvider",
+    "get_wakeword_provider",
     "VoiceError",
     "MicrophoneError",
     "MicrophoneNotFoundError",

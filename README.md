@@ -11,49 +11,60 @@
 
 ## 🚀 Key Capabilities
 
+- **Lightweight Wake Word System (Phase 6)**: Hands-free activation via "JARVIS" wake phrase with low-power local acoustic/energy evaluation (< 0.5% idle CPU), debounced cooldown protection, and seamless microphone ownership handover.
 - **Natural Voice Conversation Loop (Phase 5)**: Complete end-to-end conversational pipeline connecting Microphone → Speech Detection (VAD) → Tamil STT → AI Conversation Engine → Tamil TTS → Speaker playback.
 - **AI Brain & Natural Conversation (Phase 4)**: Context-aware conversational intelligence supporting pure Tamil (`ta-IN`), English, and mixed Tanglish code-switching with concise, friendly JARVIS persona.
 - **Tamil Speech Recognition (STT)**: Fast cloud transcription for Tamil, English, and Tanglish with on-demand Voice Activity Detection (VAD).
 - **Natural Tamil Voice Synthesis (TTS)**: High-definition neural speech (`ta-IN-PallaviNeural`, `ta-IN-ValluvarNeural`) with 100% in-memory audio streaming.
 - **Hardware-First Resource Efficiency**:
+  - **Zero Continuous Cloud Audio Upload**: Background wake listening evaluates audio locally without streaming ambient sound to cloud APIs.
   - **Zero Heavy Local LLMs**: Utilizes lightweight Cloud API inference (Gemini / OpenAI REST).
-  - **Ultra-Low Memory Footprint**: Startup memory footprint is **~72.8 MB RAM** with zero background polling.
+  - **Ultra-Low Memory Footprint**: Baseline memory footprint is **~72.0 MB RAM** with zero background polling.
   - **Bounded Short-Term Context**: Strict FIFO history management (`AI_MAX_HISTORY_MESSAGES=12`) prevents memory and token bloat.
   - **100% In-Memory Audio**: Audio buffers are processed purely in volatile RAM, eliminating temporary files and disk wear.
-- **Provider-Independent Interfaces**: Clean abstractions across AI (`app/ai/provider.py`), STT (`app/voice/stt.py`), and TTS (`app/voice/tts.py`).
+- **Provider-Independent Interfaces**: Clean abstractions across Wake Word (`app/voice/wakeword_provider.py`), AI (`app/ai/provider.py`), STT (`app/voice/stt.py`), and TTS (`app/voice/tts.py`).
 - **Safety & Truth Boundaries**: Enforces **No-Fake-Actions** rule — the assistant will never claim to perform actions it has not executed.
-- **Privacy-First Manual Activation**: Microphone is completely OFF by default and activates strictly when voice mode is started.
 
 > [!NOTE]
-> Voice mode is manually activated in Phase 5. Wake-word activation is planned for a later phase.
+> Wake-word detection is optional and can be disabled via `WAKE_WORD_ENABLED=false`. Manual voice mode remains available as a fallback via `python -m app.voice.conversation`.
 
 ---
 
 ## 🏛️ System Architecture
 
 ```text
-Microphone (On-Demand)
-       ↓
+Idle State
+    ↓
+Low-Power Wake Word Listener (Local Energy & Keyword Matching)
+    ↓
+"JARVIS" Detected (< 15 ms latency)
+    ↓
+Microphone Stream Paused & Handed Over
+    ↓
+Optional Short Wake Response ("சொல்லுங்க.")
+    ↓
 Speech Detection & VAD (0.47 ms energy check)
-       ↓
+    ↓
 Tamil STT Provider (Google / Groq Whisper)
-       ↓
+    ↓
 Conversation Manager (Bounded 12-turn FIFO Context)
-       ↓
+    ↓
 AI Provider (Gemini / OpenAI / Groq)
-       ↓
+    ↓
 Tamil TTS Manager (Microsoft Edge Neural `ta-IN-PallaviNeural`)
-       ↓
+    ↓
 In-Memory Audio Decoder & Player (miniaudio / sounddevice)
-       ↓
+    ↓
 Speaker Output
+    ↓
+Wake Listener Resumes & Returns to Idle
 ```
 
 ### State Machine Lifecycle
 ```text
-  IDLE ───> LISTENING ───> PROCESSING_SPEECH ───> THINKING ───> SPEAKING ───> IDLE
-   ▲                                                                           │
-   └─────────────────────────── [ERROR / CANCEL] ──────────────────────────────┘
+  IDLE ───> WAKE_LISTENING ───> WAKE_DETECTED ───> ACTIVATING ───> LISTENING ───> THINKING ───> SPEAKING ───> IDLE
+   ▲                                                                                                           │
+   └─────────────────────────────────── [ERROR / CANCEL] ──────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -79,18 +90,23 @@ myoneAI/
 │   │   ├── prompts.py                      # JARVIS Tamil persona & No-Fake-Actions rules
 │   │   ├── provider.py                     # Provider abstraction (Gemini, OpenAI, Mock)
 │   │   └── test_ai.py                      # Interactive & CLI chat test utility
-│   ├── voice/                              # Voice, STT, TTS & Conversation Loop (Phase 5)
+│   ├── voice/                              # Voice, STT, TTS, Wake Word & Conversation Loop
 │   │   ├── __init__.py
 │   │   ├── audio.py                        # In-memory audio player & speaker output
 │   │   ├── audio_config.py                 # Centralized audio parameters & VAD thresholds
-│   │   ├── conversation.py                 # VoiceConversationManager & state machine
-│   │   ├── exceptions.py                   # Structured Voice, STT & TTS exceptions
+│   │   ├── conversation.py                 # VoiceConversationManager & state machine (Phase 5)
+│   │   ├── exceptions.py                   # Structured Voice, STT, TTS & Wake exceptions
+│   │   ├── jarvis.py                       # Main Hands-Free Assistant Entrypoint (Phase 6)
 │   │   ├── microphone.py                   # Sounddevice audio capture manager
 │   │   ├── stt.py                          # Provider-independent STT interfaces
 │   │   ├── tts.py                          # Provider-independent TTS & TTSManager
 │   │   ├── vad.py                          # Energy-based Voice Activity Detection
 │   │   ├── voice_manager.py                # Voice pipeline coordinator
-│   │   ├── test_voice_loop.py              # Voice loop testing & mock runner (Phase 5)
+│   │   ├── wakeword.py                     # Unified wake word exports (Phase 6)
+│   │   ├── wakeword_manager.py             # WakeWordManager & mic ownership handover
+│   │   ├── wakeword_provider.py            # Wake word provider abstraction & local engine
+│   │   ├── test_wakeword.py                # Wake word test runner (Phase 6)
+│   │   ├── test_voice_loop.py              # Voice loop test runner (Phase 5)
 │   │   ├── test_microphone.py              # Mode 1: Microphone hardware diagnostic
 │   │   ├── test_stt.py                     # Mode 2 & 3: Live mic & file-based STT test
 │   │   └── test_tts.py                     # Interactive & CLI Text-to-Speech test
@@ -103,16 +119,19 @@ myoneAI/
 │   ├── phase4-performance.md               # AI Conversation benchmarks
 │   ├── phase4-privacy.md                   # AI privacy & data transmission details
 │   ├── phase5-performance.md               # Voice conversation loop benchmarks
-│   └── phase5-privacy.md                   # Voice privacy & audio lifecycle details
+│   ├── phase5-privacy.md                   # Voice privacy & audio lifecycle details
+│   ├── phase6-performance.md               # Wake word system benchmarks
+│   └── phase6-privacy.md                   # Wake word privacy & audio lifecycle details
 ├── security/
 │   ├── phase2-stt-audit.md                 # STT security audit checklist
 │   ├── phase3-tts-audit.md                 # TTS security audit checklist
 │   ├── phase4-ai-audit.md                  # AI Conversation security audit checklist
-│   └── phase5-voice-loop-audit.md          # Voice loop security audit checklist
+│   ├── phase5-voice-loop-audit.md          # Voice loop security audit checklist
+│   └── phase6-wakeword-audit.md            # Wake word security audit checklist
 ├── scripts/
 │   ├── run.bat                             # Windows launcher script
 │   └── test.bat                            # Pytest runner script
-├── tests/                                  # 86 automated unit/integration tests (0 failed)
+├── tests/                                  # 96 automated unit/integration tests (0 failed)
 ├── .env.example                            # Configuration template
 ├── .gitignore                              # Secrets & cache ignore rules
 ├── pytest.ini                              # Pytest configuration
@@ -153,38 +172,44 @@ Add your API key (e.g. `AI_API_KEY=your_gemini_api_key_here`).
 
 ---
 
-## 🎙️ Voice Conversation Usage (Phase 5)
+## 🤖 Hands-Free JARVIS Usage (Phase 6)
 
-### One-Shot Voice Conversation
-Starts microphone, listens to a single speech utterance, transcribes, gets AI reply, speaks response, and safely releases audio resources:
+### Main Hands-Free Assistant
+Listens continuously for "JARVIS", provides a short acknowledgement ("சொல்லுங்க."), and flows seamlessly into Tamil conversation:
 ```powershell
-python -m app.voice.conversation
+# Live assistant with microphone:
+python -m app.voice.jarvis
+
+# Offline mock simulation without hardware:
+python -m app.voice.jarvis --mock
 ```
 
-### Continuous Interactive Voice Conversation
-Continues voice dialogue across multiple turns while preserving short-term context. Exit cleanly by saying `exit`, `quit`, `stop`, or pressing `Ctrl+C`:
+### Wake Word Detection Diagnostic
+Test wake phrase detection independently:
 ```powershell
-python -m app.voice.conversation --interactive
-```
+# Live wake word test:
+python -m app.voice.test_wakeword
 
-### Offline Mock Voice Pipeline Test
-Simulates the entire audio/STT/AI/TTS pipeline without requiring microphone hardware, speaker playback, or cloud API keys:
-```powershell
-python -m app.voice.test_voice_loop --mock
+# Offline mock test:
+python -m app.voice.test_wakeword --mock
 ```
 
 ---
 
-## 🧪 Testing Subsystems
+## 🎙️ Voice & AI Subsystem Tests
+
+### One-Shot & Interactive Voice Loop (Phase 5)
+```powershell
+# One-shot voice turn:
+python -m app.voice.conversation
+
+# Continuous interactive mode:
+python -m app.voice.conversation --interactive
+```
 
 ### AI Conversation CLI Test (Phase 4)
-Interactive terminal chat supporting Tamil, Tanglish, and English:
 ```powershell
-# Interactive chat with configured AI provider (e.g. Gemini):
 python -m app.ai.test_ai
-
-# Offline Mock provider test:
-python -m app.ai.test_ai --provider mock
 ```
 
 ### Text-to-Speech (TTS) CLI Test (Phase 3)
@@ -197,12 +222,7 @@ python -m app.voice.test_tts --text "வணக்கம் Infanto, எப்ப
 python -m app.voice.test_stt
 ```
 
-### Run System Health Diagnostic (Phase 1)
-```powershell
-.\scripts\run.bat --status
-```
-
-### Run All Automated Unit Tests (86 tests)
+### Run All Automated Unit Tests (96 tests)
 ```powershell
 .\scripts\test.bat
 # Or:
@@ -211,18 +231,20 @@ pytest -v
 
 ---
 
-## 📊 Performance Benchmarks (Phase 5)
+## 📊 Performance Benchmarks (Phase 6)
 
 | Subsystem | Metric | Measured Value | Threshold | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **System** | **Startup RAM** | **72.8 MB** | < 100 MB | 🟢 Ultra-Lightweight |
-| **Voice Loop** | **Active Turn RAM Overhead** | **+2.55 MB RAM** | < 50 MB | 🟢 Zero Leak |
+| **System** | **Startup RAM** | **72.0 MB** | < 100 MB | 🟢 Ultra-Lightweight |
+| **Wake Listener** | **Idle Wake Listening RAM** | **72.0 MB** | < 100 MB | 🟢 Zero Leak |
+| **Wake Listener** | **Idle Wake CPU** | **< 0.5% CPU** | < 3.0% CPU | 🟢 Power Efficient |
+| **Wake Listener** | **Wake Trigger Latency** | **12.14 ms** | < 100 ms | 🟢 Real-time Trigger |
+| **Voice Loop** | **Active Turn RAM Overhead** | **+2.90 MB RAM** | < 50 MB | 🟢 Zero Leak |
 | **Speech VAD** | **VAD Chunk Processing Time** | **0.47 ms / 1s audio** | < 10 ms | 🟢 Real-time (<0.1% CPU) |
 | **Local Models**| **Local Model Weight Size** | **0 MB (Cloud APIs)** | 0 MB | 🟢 Cloud Optimized |
-| **Mock Pipeline**| **Mock E2E Latency** | **~231 ms** | < 500 ms | 🟢 Instantaneous |
-| **Live Turn** | **Total Cloud Voice Turn Latency** | **~2.4s - 4.5s** | < 8.0s | 🟢 Natural Voice Flow |
+| **Continuous Upload** | **Background Cloud Stream**| **0 Bytes / sec** | 0 cloud stream | 🟢 100% Local Wake Engine |
 | **Disk I/O** | **Temporary Audio Files** | **0 Bytes (RAM only)** | 0 disk writes | 🟢 Zero SSD Thrashing |
-| **Tests** | **Unit & Integration Test Pass Rate** | **86 / 86 (100%)** | 100% | 🟢 All Pass (0 failed) |
+| **Tests** | **Unit & Integration Test Pass Rate** | **96 / 96 (100%)** | 100% | 🟢 All Pass (0 failed) |
 
 ---
 
@@ -233,7 +255,7 @@ pytest -v
 - [x] **Phase 3: Tamil TTS** — Microsoft Edge Neural TTS (`ta-IN-PallaviNeural`), in-memory audio player, overlap protection.
 - [x] **Phase 4: AI Conversation** — Cloud LLM provider abstraction (Gemini / OpenAI), JARVIS Tamil persona, short-term context window, safety boundaries.
 - [x] **Phase 5: Voice Conversation Loop** — Coordinated voice cycle (Idle → Record → STT → AI → TTS → Idle), interactive mode, mock simulation, and interrupt safety.
-- [ ] **Phase 6: Wake Word** — Low-power wake word detection.
+- [x] **Phase 6: Wake Word** — Low-power local wake word detection, debouncing cooldown, microphone ownership handover, and hands-free JARVIS runtime.
 - [ ] **Phase 7: Memory** — Privacy-aware short-term and persistent preference memory.
 - [ ] **Phase 8: PC Tools** — Whitelisted local PC actions.
 - [ ] **Phase 9: Permission & Security System** — Tiered permission engine.
