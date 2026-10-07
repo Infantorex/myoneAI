@@ -1,4 +1,4 @@
-"""Tool registry defining all explicit, allowlisted PC capabilities (Phase 8 & 9)."""
+"""Tool registry defining all explicit, allowlisted PC capabilities (Phases 8, 9 & 10)."""
 
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -14,6 +14,25 @@ from app.tools.media import (
     toggle_mute,
     volume_down,
     volume_up,
+)
+from app.tools.productivity import (
+    cancel_reminder,
+    cancel_timer,
+    clear_all_notes,
+    clear_all_reminders,
+    clear_all_tasks,
+    complete_task,
+    create_note,
+    create_reminder,
+    create_task,
+    create_timer,
+    delete_note,
+    delete_task,
+    get_timer_status,
+    list_notes,
+    list_reminders,
+    list_tasks,
+    search_notes,
 )
 from app.tools.schemas import ToolSchema
 from app.tools.screenshot import take_screenshot
@@ -367,6 +386,224 @@ class ToolRegistry:
                 permission=PermissionLevel.SAFE,
             ),
             diagnose_system_performance,
+        )
+
+        # 7. Productivity & Personal Task System (Phase 10)
+        # 7.1 Tasks
+        self.register(
+            ToolSchema(
+                name="create_task",
+                description="Create a new task on user's todo list",
+                parameters={
+                    "title": {"type": "string", "description": "Task title or description"},
+                    "description": {"type": "string", "description": "Optional details"},
+                    "priority": {"type": "string", "description": "Priority: LOW, MEDIUM, HIGH"},
+                    "due_at": {"type": "string", "description": "Optional due datetime ISO string"},
+                },
+                required_params=["title"],
+                permission=PermissionLevel.SAFE,
+            ),
+            create_task,
+        )
+        self.register(
+            ToolSchema(
+                name="list_tasks",
+                description="List saved user tasks",
+                parameters={
+                    "status": {"type": "string", "description": "Filter: TODO, IN_PROGRESS, COMPLETED"},
+                    "priority": {"type": "string", "description": "Filter: LOW, MEDIUM, HIGH"},
+                    "limit": {"type": "integer", "description": "Max tasks to return"},
+                },
+                required_params=[],
+                permission=PermissionLevel.SAFE,
+            ),
+            list_tasks,
+        )
+        self.register(
+            ToolSchema(
+                name="complete_task",
+                description="Mark a task as completed by ID or title",
+                parameters={
+                    "task_id": {"type": "integer", "description": "Task ID"},
+                    "title": {"type": "string", "description": "Task title keywords"},
+                },
+                required_params=[],
+                permission=PermissionLevel.SAFE,
+            ),
+            complete_task,
+        )
+        self.register(
+            ToolSchema(
+                name="delete_task",
+                description="Delete a task by ID or title (requires confirmation)",
+                parameters={
+                    "task_id": {"type": "integer", "description": "Task ID"},
+                    "title": {"type": "string", "description": "Task title keywords"},
+                },
+                required_params=[],
+                permission=PermissionLevel.CONFIRMATION_REQUIRED,
+            ),
+            delete_task,
+        )
+        self.register(
+            ToolSchema(
+                name="clear_all_tasks",
+                description="Clear all saved tasks (requires confirmation)",
+                parameters={},
+                required_params=[],
+                permission=PermissionLevel.CONFIRMATION_REQUIRED,
+            ),
+            clear_all_tasks,
+        )
+
+        # 7.2 Reminders
+        self.register(
+            ToolSchema(
+                name="create_reminder",
+                description="Schedule a reminder for a specific time or natural expression",
+                parameters={
+                    "message": {"type": "string", "description": "Reminder text / reminder content"},
+                    "trigger_at": {"type": "string", "description": "Target datetime ISO string (optional if in message)"},
+                    "recurrence": {"type": "string", "description": "Recurrence: NONE, DAILY, WEEKLY"},
+                },
+                required_params=["message"],
+                permission=PermissionLevel.SAFE,
+            ),
+            create_reminder,
+        )
+        self.register(
+            ToolSchema(
+                name="list_reminders",
+                description="List scheduled reminders",
+                parameters={
+                    "status": {"type": "string", "description": "Filter: PENDING, TRIGGERED, CANCELLED, COMPLETED"},
+                    "limit": {"type": "integer", "description": "Max reminders to return"},
+                },
+                required_params=[],
+                permission=PermissionLevel.SAFE,
+            ),
+            list_reminders,
+        )
+        self.register(
+            ToolSchema(
+                name="cancel_reminder",
+                description="Cancel a scheduled reminder by ID or message (requires confirmation)",
+                parameters={
+                    "reminder_id": {"type": "integer", "description": "Reminder ID"},
+                    "message": {"type": "string", "description": "Reminder text keywords"},
+                },
+                required_params=[],
+                permission=PermissionLevel.CONFIRMATION_REQUIRED,
+            ),
+            cancel_reminder,
+        )
+        self.register(
+            ToolSchema(
+                name="clear_all_reminders",
+                description="Clear all scheduled reminders (requires confirmation)",
+                parameters={},
+                required_params=[],
+                permission=PermissionLevel.CONFIRMATION_REQUIRED,
+            ),
+            clear_all_reminders,
+        )
+
+        # 7.3 Notes
+        self.register(
+            ToolSchema(
+                name="create_note",
+                description="Save a new note to user notebook",
+                parameters={
+                    "content": {"type": "string", "description": "Note content"},
+                    "title": {"type": "string", "description": "Optional note title"},
+                    "tags": {"type": "array", "description": "Optional tags list"},
+                },
+                required_params=["content"],
+                permission=PermissionLevel.SAFE,
+            ),
+            create_note,
+        )
+        self.register(
+            ToolSchema(
+                name="list_notes",
+                description="List recent notes",
+                parameters={"limit": {"type": "integer", "description": "Max notes to return"}},
+                required_params=[],
+                permission=PermissionLevel.SAFE,
+            ),
+            list_notes,
+        )
+        self.register(
+            ToolSchema(
+                name="search_notes",
+                description="Search notes by keyword",
+                parameters={
+                    "query": {"type": "string", "description": "Search keyword"},
+                    "limit": {"type": "integer", "description": "Max results"},
+                },
+                required_params=["query"],
+                permission=PermissionLevel.SAFE,
+            ),
+            search_notes,
+        )
+        self.register(
+            ToolSchema(
+                name="delete_note",
+                description="Delete a note by ID or title (requires confirmation)",
+                parameters={
+                    "note_id": {"type": "integer", "description": "Note ID"},
+                    "title": {"type": "string", "description": "Note title"},
+                },
+                required_params=[],
+                permission=PermissionLevel.CONFIRMATION_REQUIRED,
+            ),
+            delete_note,
+        )
+        self.register(
+            ToolSchema(
+                name="clear_all_notes",
+                description="Clear all saved notes (requires confirmation)",
+                parameters={},
+                required_params=[],
+                permission=PermissionLevel.CONFIRMATION_REQUIRED,
+            ),
+            clear_all_notes,
+        )
+
+        # 7.4 Timers
+        self.register(
+            ToolSchema(
+                name="create_timer",
+                description="Start a countdown timer",
+                parameters={
+                    "duration_seconds": {"type": "number", "description": "Duration in seconds"},
+                    "duration_text": {"type": "string", "description": "Duration expression (e.g. '10 minutes', '30 seconds')"},
+                    "label": {"type": "string", "description": "Timer label / purpose"},
+                },
+                required_params=[],
+                permission=PermissionLevel.SAFE,
+            ),
+            create_timer,
+        )
+        self.register(
+            ToolSchema(
+                name="cancel_timer",
+                description="Cancel an active timer",
+                parameters={"timer_id": {"type": "string", "description": "Optional timer ID"}},
+                required_params=[],
+                permission=PermissionLevel.SAFE,
+            ),
+            cancel_timer,
+        )
+        self.register(
+            ToolSchema(
+                name="get_timer_status",
+                description="Check remaining time on active timer",
+                parameters={"timer_id": {"type": "string", "description": "Optional timer ID"}},
+                required_params=[],
+                permission=PermissionLevel.SAFE,
+            ),
+            get_timer_status,
         )
 
 

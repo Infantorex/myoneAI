@@ -121,6 +121,13 @@ class Settings(BaseSettings):
     memory_require_confirmation: bool = Field(default=True, description="Require confirmation before clear/destructive memory actions")
     memory_database_path: str = Field(default="data/memory.db", description="SQLite database path for structured memories")
 
+    # Productivity & Task System Settings (Phase 10)
+    productivity_enabled: bool = Field(default=True, description="Enable local productivity and task management system")
+    productivity_database_path: str = Field(default="data/productivity.db", description="SQLite database path for tasks, reminders, and notes")
+    productivity_check_interval: int = Field(default=30, description="Scheduler check interval in seconds for due reminders")
+    max_active_timers: int = Field(default=5, description="Maximum simultaneous active timers allowed")
+    max_missed_reminders_on_startup: int = Field(default=5, description="Maximum past due reminders to trigger on startup recovery")
+    productivity_timezone: str = Field(default="", description="Optional timezone override (e.g. Asia/Kolkata); defaults to system local timezone")
 
     # Web Dashboard Settings
     web_api_url: str = Field(default="http://localhost:8000", description="Backend/Vercel API URL")
