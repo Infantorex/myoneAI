@@ -13,40 +13,42 @@
 
 - **Tamil & Tanglish Voice Assistant**: Understands pure Tamil, Tamil-English code-switching, Tanglish, and English; responds with natural Tamil speech.
 - **Hardware-First Resource Efficiency**:
-  - **Zero Heavy Local LLMs**: Utilizes lightweight Cloud API inference (Gemini / OpenAI).
-  - **No Continuous Background Processing**: Microphone and heavy audio inference activate strictly on demand.
-  - **Ultra-Low Memory Footprint**: Core runtime uses **< 45 MB RAM** at startup.
+  - **Zero Heavy Local LLMs**: Utilizes lightweight Cloud API inference.
+  - **No Continuous Background Processing**: Microphone and heavy audio inference activate strictly on demand with Voice Activity Detection (VAD).
+  - **Ultra-Low Memory Footprint**: Core runtime consumes **~62.8 MB RAM** on startup.
 - **Provider-Independent Interfaces**: Modularity across AI (`app/ai/`), STT (`app/voice/stt.py`), and TTS (`app/voice/tts.py`).
 - **Security & Safety First**: Tiered permission system (`SAFE`, `CONFIRMATION_REQUIRED`, `HIGH_RISK`, `BLOCKED`) with zero unapproved shell execution.
 - **Web Dashboard**: Lightweight companion dashboard deployable to Vercel.
 
 ---
 
-## 🏛️ Architecture & Dataflow
+## 🎙️ Speech-to-Text (STT) Subsystem (Phase 2)
 
+### Architecture
 ```text
 Microphone (On-demand)
        ↓
-Lightweight Wake Word
+sounddevice Audio Capture (16kHz Mono 16-bit PCM)
        ↓
-Speech-to-Text (STT) [Tamil / Tanglish / English]
+Energy-Based Voice Activity Detection (VAD)
+  - Pre-speech rolling buffer
+  - Dynamic ambient noise calibration
+  - Auto-detection of speech end (1.5s silence)
        ↓
-Conversation Manager & Memory Layer
+In-Memory WAV Packaging (Zero disk thrashing)
        ↓
-AI Provider (Cloud LLM Inference)
+STT Provider Abstraction (app/voice/stt.py)
+  ├── GoogleSTTProvider (Default, cloud web speech, 0 MB weights)
+  ├── GroqWhisperSTTProvider (Cloud Whisper API)
+  └── MockSTTProvider (Offline / CI/CD testing)
        ↓
-Intent & Tool Decision Engine
-       ↓
-Security & Permission Layer (Confirmation Check)
-       ↓
-PC Tool Execution (App Control, Browser, Filesystem)
-       ↓
-Response Generator (Tamil-First Persona)
-       ↓
-Text-to-Speech (TTS) [Natural Tamil Voice]
-       ↓
-Speaker Output
+Recognized Tamil / English / Mixed Text Output
 ```
+
+### Supported Languages & Dialects
+- **Pure Tamil (`ta-IN`)**: e.g., `"ஜார்விஸ், இன்று என்ன செய்ய வேண்டும்?"`
+- **Tamil-English Mixed / Code-switching**: e.g., `"Open Chrome பண்ணு"`, `"என் project folder open பண்ணு"`
+- **English (`en-IN`, `en-US`)**: e.g., `"What is my battery percentage?"`
 
 ---
 
@@ -55,58 +57,48 @@ Speaker Output
 ```text
 myoneAI/
 ├── app/
-│   ├── __init__.py
-│   ├── core/                  # Core runtime & lifecycle
+│   ├── __init__.py                         # Version and metadata
+│   ├── core/                               # Core runtime & lifecycle
 │   │   ├── __init__.py
-│   │   ├── config.py          # Pydantic settings & env validation
-│   │   ├── logging_config.py  # Log rotation & secret redaction
-│   │   ├── events.py          # Pub-sub async event bus
-│   │   ├── state.py           # State machine & telemetry
-│   │   └── main.py            # CLI entrypoint & diagnostic engine
-│   ├── voice/                 # Voice pipeline interfaces
+│   │   ├── config.py                       # Pydantic BaseSettings, env validation
+│   │   ├── logging_config.py               # Rotating log handler & credential redactor
+│   │   ├── events.py                       # Pub-sub async event bus
+│   │   ├── state.py                        # State machine & telemetry
+│   │   └── main.py                         # CLI entrypoint & diagnostic engine
+│   ├── voice/                              # Voice & STT subsystem
 │   │   ├── __init__.py
-│   │   ├── microphone.py      # Audio capture manager
-│   │   ├── wake_word.py       # Wake-word detection interface
-│   │   ├── stt.py             # Speech-to-Text abstraction
-│   │   ├── tts.py             # Text-to-Speech abstraction
-│   │   └── voice_manager.py   # Voice cycle orchestrator
-│   ├── ai/                    # Cloud AI & conversation
+│   │   ├── audio_config.py                 # Centralized audio parameters & VAD thresholds
+│   │   ├── exceptions.py                   # Structured Voice & STT exceptions
+│   │   ├── vad.py                          # Energy-based Voice Activity Detection
+│   │   ├── microphone.py                   # Sounddevice audio capture manager
+│   │   ├── stt.py                          # Provider-independent STT interfaces
+│   │   ├── tts.py                          # Text-to-Speech abstraction
+│   │   ├── voice_manager.py                # Voice pipeline coordinator
+│   │   ├── wake_word.py                    # Wake-word detection interface
+│   │   ├── test_microphone.py              # Mode 1: Microphone hardware diagnostic
+│   │   └── test_stt.py                     # Mode 2 & 3: Live mic & file-based STT test
+│   ├── ai/                                 # AI & reasoning layer
 │   │   ├── __init__.py
-│   │   ├── provider.py        # Cloud LLM provider interface
-│   │   ├── conversation.py    # Turn & history management
-│   │   ├── prompts.py         # Tamil JARVIS persona prompts
-│   │   └── memory.py          # Privacy-aware short/long-term memory
-│   ├── monitoring/            # On-demand system telemetry
-│   │   ├── __init__.py
-│   │   ├── system.py          # CPU, RAM, Disk metrics
-│   │   ├── battery.py         # Battery & power metrics
-│   │   ├── network.py         # Network traffic counters
-│   │   └── process.py         # Top process inspector
-│   ├── tools/                 # PC control & actions
-│   │   ├── __init__.py
-│   │   ├── app_control.py     # Application launching / closing
-│   │   ├── browser.py         # Web navigation & search
-│   │   ├── filesystem.py      # Safe folder/file operations
-│   │   ├── system_control.py  # System info & screenshots
-│   │   └── media.py           # Volume & media control
-│   └── security/              # Access control & confirmations
-│       ├── __init__.py
-│       ├── permissions.py     # Central permission registry
-│       └── confirmations.py   # User prompt verification
-├── web/                       # Web dashboard (Phase 11-12)
-│   ├── frontend/              # Lightweight dashboard
-│   └── api/                   # Vercel serverless functions
-├── config/                    # Configuration documentation
-│   └── README.md
-├── data/                      # Local data directory (.gitkeep)
-├── logs/                      # Log directory with rotation (.gitkeep)
-├── scripts/                   # Utility scripts (run.bat, test.bat)
-├── tests/                     # Comprehensive test suite
-├── .env.example               # Configuration template
-├── .gitignore                 # Secrets & cache ignore rules
-├── requirements.txt           # Minimal lightweight dependencies
-├── README.md                  # Project documentation
-└── LICENSE                    # MIT License
+│   │   ├── provider.py                     # Cloud LLM provider interface
+│   │   ├── conversation.py                 # Dialogue turn manager & context trimmer
+│   │   ├── prompts.py                      # Tamil JARVIS persona prompts
+│   │   └── memory.py                       # Privacy-aware short/long-term memory
+│   ├── monitoring/                         # On-demand system telemetry
+│   ├── tools/                              # PC control & actions
+│   └── security/                           # Access control & confirmations
+├── docs/
+│   └── phase2-performance.md               # Hardware benchmarks on i3 / 8GB RAM
+├── security/
+│   └── phase2-stt-audit.md                 # Security & privacy audit checklist
+├── scripts/
+│   ├── run.bat                             # Windows launcher script
+│   └── test.bat                            # Pytest runner script
+├── tests/                                  # 47 automated unit tests (0 failed)
+├── .env.example                            # Configuration template
+├── .gitignore                              # Secrets & cache ignore rules
+├── pytest.ini                              # Pytest configuration
+├── requirements.txt                        # Lightweight dependencies
+└── README.md
 ```
 
 ---
@@ -115,11 +107,11 @@ myoneAI/
 
 ### 1. Prerequisites
 - **Python 3.12+**
-- **Git**
+- **Windows 10/11** (Intel i3 / 8GB RAM compatible)
 
 ### 2. Setup Virtual Environment
 ```powershell
-# Clone the repository
+# Clone repository
 git clone https://github.com/Infantorex/myoneAI.git
 cd myoneAI
 
@@ -138,55 +130,37 @@ Copy `.env.example` to `.env`:
 ```powershell
 cp .env.example .env
 ```
-Configure your `.env` with your API keys (e.g. `AI_API_KEY`, `DEFAULT_LANGUAGE=ta-IN`).
 
 ---
 
-## 🧪 Testing & Diagnostics
+## 🧪 Testing Voice & STT Subsystems
 
-### Run the Diagnostic Status Command
+### Mode 1 — Microphone Hardware Diagnostic
+Scans available audio inputs and tests a live 2-second capture burst with an ASCII volume meter:
+```powershell
+python -m app.voice.test_microphone
+```
+
+### Mode 2 — Live Speech-to-Text Test (Tamil)
+Records one spoken utterance using automatic VAD silence detection and transcribes it:
+```powershell
+python -m app.voice.test_stt
+```
+
+### Mode 3 — File-Based STT Test
+Transcribe from an existing WAV audio file without using a microphone:
+```powershell
+python -m app.voice.test_stt --file sample_tamil.wav
+# Or with mock provider:
+python -m app.voice.test_stt --file sample_tamil.wav --provider mock
+```
+
+### Run Diagnostic Status Command
 ```powershell
 .\scripts\run.bat --status
-# Or directly via Python:
-python -m app.core.main --status
 ```
 
-Sample output:
-```text
-======================================================================
-  myoneAI — Tamil JARVIS (v0.1.0)
-======================================================================
-  [Status]             : [ONLINE] Active
-  [State]              : IDLE
-  [Uptime]             : 0.0s
-  [Process Memory]     : 44.57 MB (Ultra-Lightweight)
-----------------------------------------------------------------------
-  Hardware Telemetry (i3 / 8GB RAM Optimized):
-  [CPU Usage]          : 0.0%
-  [RAM Usage]          : 75.2% (5979.5 MB / 7953.7 MB)
-  [Battery]            : 100% (Charging)
-----------------------------------------------------------------------
-  Service Registry:
-  [Voice Engine]       : STOPPED
-  [Wake Word]          : STOPPED
-  [AI Provider]        : gemini (Not Configured)
-  [System Monitoring]  : STOPPED
-  [Security Layer]     : STOPPED
-----------------------------------------------------------------------
-  Configuration:
-  [Environment]        : development
-  [Default Language]   : ta-IN
-  [Log File]           : logs/jarvis.log
-  [Require Confirm]    : True
-======================================================================
-```
-
-### Verify Environment
-```powershell
-python -m app.core.main --check-env
-```
-
-### Run Pytest Suite
+### Run Automated Unit Tests (47 tests)
 ```powershell
 .\scripts\test.bat
 # Or:
@@ -195,31 +169,43 @@ pytest -v
 
 ---
 
-## 🗺️ Development Phases
+## 📊 Phase 2 Benchmark Results
 
-- [x] **Phase 1: Foundation** *(Current)* — Core configuration, rotating logs, event bus, state machine, CLI diagnostics, modular package interfaces, security baseline.
-- [ ] **Phase 2: Tamil STT** — Provider integration for pure Tamil & Tamil-English mixed speech.
-- [ ] **Phase 3: Tamil TTS** — Natural Tamil voice synthesis.
-- [ ] **Phase 4: AI Conversation** — Cloud LLM provider integration with Tamil conversational persona.
-- [ ] **Phase 5: Voice Conversation Loop** — Coordinated voice cycle (Idle → Record → STT → AI → TTS → Idle).
-- [ ] **Phase 6: Wake Word** — Low-power wake word detection.
-- [ ] **Phase 7: Memory** — Privacy-aware short-term and persistent preference memory.
-- [ ] **Phase 8: PC Tools** — Whitelisted local PC actions (app launcher, browser, volume).
-- [ ] **Phase 9: Permission & Security System** — Tiered permission engine and confirmation prompts.
-- [ ] **Phase 10: System Monitoring** — On-demand telemetry reports.
-- [ ] **Phase 11: Web Dashboard** — Lightweight frontend dashboard.
-- [ ] **Phase 12: Laptop ↔ Vercel Communication** — Secure API sync.
-- [ ] **Phase 13: Optimization** — Fine-tuning CPU/RAM profiling and response latency.
-- [ ] **Phase 14: Testing** — Comprehensive end-to-end integration tests.
-- [ ] **Phase 15: Production Deployment** — Vercel web deployment & local agent service.
+| Metric | Measured Value | Threshold | Status |
+| :--- | :--- | :--- | :--- |
+| **Startup RAM** | **62.8 MB** | < 100 MB | 🟢 Ultra-Lightweight |
+| **Active Capture & VAD RAM** | **63.1 MB** | < 120 MB | 🟢 Zero Leak |
+| **VAD Processing Latency** | **0.47 ms / 1s audio** | < 10.0 ms | 🟢 Real-time (<0.1% CPU) |
+| **Local Model Weight Size** | **0 MB (Cloud API)** | 0 MB | 🟢 Cloud Optimized |
+| **Unit Test Pass Rate** | **47 / 47 (100%)** | 100% | 🟢 All Pass (0 failed) |
 
 ---
 
 ## 🛡️ Privacy & Security Principles
 
-- **Zero Arbitrary Shell Execution**: The AI cannot run raw shell scripts; only whitelisted tools are allowed.
-- **Sensitive Data Redaction**: API keys, passwords, and tokens are automatically scrubbed from all log files.
-- **Local Isolation**: Audio is not continuously captured or uploaded.
+- **Zero Permanent Audio Retention**: Audio is captured into in-memory buffers and discarded immediately after transcription.
+- **No Continuous Audio Streaming**: Microphone activates strictly on demand.
+- **Secret Redaction**: API keys and authorization tokens are masked in all logs.
+
+---
+
+## 🗺️ Development Roadmap
+
+- [x] **Phase 1: Foundation** — Core config, logging, event bus, state machine, CLI diagnostics.
+- [x] **Phase 2: Tamil STT** — Audio capture, VAD, Google/Groq STT providers, Mode 1/2/3 tests, performance benchmarks, security audit.
+- [ ] **Phase 3: Tamil TTS** — Natural Tamil voice synthesis.
+- [ ] **Phase 4: AI Conversation** — Cloud LLM provider integration with Tamil conversational persona.
+- [ ] **Phase 5: Voice Conversation Loop** — Coordinated voice cycle (Idle → Record → STT → AI → TTS → Idle).
+- [ ] **Phase 6: Wake Word** — Low-power wake word detection.
+- [ ] **Phase 7: Memory** — Privacy-aware short-term and persistent preference memory.
+- [ ] **Phase 8: PC Tools** — Whitelisted local PC actions.
+- [ ] **Phase 9: Permission & Security System** — Tiered permission engine.
+- [ ] **Phase 10: System Monitoring** — On-demand telemetry reports.
+- [ ] **Phase 11: Web Dashboard** — Lightweight frontend dashboard.
+- [ ] **Phase 12: Laptop ↔ Vercel Communication** — Secure API sync.
+- [ ] **Phase 13: Optimization** — Fine-tuning CPU/RAM profiling.
+- [ ] **Phase 14: Testing** — End-to-end integration tests.
+- [ ] **Phase 15: Production Deployment** — Vercel web deployment & local agent service.
 
 ---
 

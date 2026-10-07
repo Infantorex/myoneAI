@@ -39,9 +39,18 @@ class Settings(BaseSettings):
     ai_model: str = Field(default="gemini-1.5-flash", description="AI model name")
 
     # Speech-to-Text (STT) Settings
-    stt_provider: str = Field(default="google", description="STT provider")
+    stt_provider: str = Field(default="google", description="STT provider (google, groq, mock)")
     stt_api_key: Optional[str] = Field(default=None, description="STT API key if required")
     stt_model: Optional[str] = Field(default=None, description="STT model name")
+    stt_language: str = Field(default="ta-IN", description="STT recognition language code")
+
+    # Audio & Voice Activity Detection (VAD) Settings
+    audio_sample_rate: int = Field(default=16000, description="Audio sample rate (Hz)")
+    audio_channels: int = Field(default=1, description="Audio channels (1=mono)")
+    audio_max_duration: float = Field(default=15.0, description="Maximum recording duration in seconds")
+    voice_activity_enabled: bool = Field(default=True, description="Enable automatic VAD silence detection")
+    vad_energy_threshold: float = Field(default=500.0, description="VAD RMS energy trigger threshold")
+    vad_silence_duration: float = Field(default=1.5, description="Silence duration to end speech (seconds)")
 
     # Text-to-Speech (TTS) Settings
     tts_provider: str = Field(default="edge-tts", description="TTS provider")
