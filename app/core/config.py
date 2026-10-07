@@ -53,9 +53,14 @@ class Settings(BaseSettings):
     vad_silence_duration: float = Field(default=1.5, description="Silence duration to end speech (seconds)")
 
     # Text-to-Speech (TTS) Settings
-    tts_provider: str = Field(default="edge-tts", description="TTS provider")
+    tts_provider: str = Field(default="edge-tts", description="TTS provider (edge-tts, mock)")
     tts_api_key: Optional[str] = Field(default=None, description="TTS API key if required")
-    tts_voice: str = Field(default="ta-IN-PallaviNeural", description="Tamil voice code")
+    tts_model: Optional[str] = Field(default=None, description="TTS model identifier")
+    tts_language: str = Field(default="ta-IN", description="Default TTS language code")
+    tts_voice: str = Field(default="ta-IN-PallaviNeural", description="Tamil neural voice code")
+    tts_speed: float = Field(default=1.0, description="Speech playback speed multiplier (1.0 = normal)")
+    tts_volume: float = Field(default=1.0, description="Speech volume multiplier (1.0 = normal)")
+    tts_timeout: float = Field(default=30.0, description="TTS synthesis timeout in seconds")
 
     # Security & Permissions
     require_confirmation_for_system_actions: bool = Field(

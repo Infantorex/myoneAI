@@ -1,6 +1,6 @@
-"""Structured exceptions for Voice, Microphone, and STT subsystems.
+"""Structured exceptions for Voice, Microphone, STT, and TTS subsystems.
 
-Ensures that errors in audio capture or cloud transcription never crash the assistant.
+Ensures that errors in audio capture, playback, or cloud synthesis never crash the assistant.
 """
 
 
@@ -15,6 +15,9 @@ class VoiceError(Exception):
         return f"{self.message} ({self.details})" if self.details else self.message
 
 
+# ------------------------------------------------------------------------------
+# Microphone & Audio Capture Exceptions
+# ------------------------------------------------------------------------------
 class MicrophoneError(VoiceError):
     """Generic microphone error."""
     pass
@@ -50,6 +53,17 @@ class InvalidAudioError(VoiceError):
     pass
 
 
+# ------------------------------------------------------------------------------
+# Audio Playback Exceptions
+# ------------------------------------------------------------------------------
+class AudioPlaybackError(VoiceError):
+    """Error occurred during audio output / speaker playback."""
+    pass
+
+
+# ------------------------------------------------------------------------------
+# Speech-to-Text (STT) Exceptions
+# ------------------------------------------------------------------------------
 class STTError(VoiceError):
     """Generic Speech-to-Text error."""
     pass
@@ -72,4 +86,47 @@ class STTAuthenticationError(STTError):
 
 class STTRateLimitError(STTError):
     """API rate limit exceeded for STT provider."""
+    pass
+
+
+# ------------------------------------------------------------------------------
+# Text-to-Speech (TTS) Exceptions
+# ------------------------------------------------------------------------------
+class TTSError(VoiceError):
+    """Generic Text-to-Speech error."""
+    pass
+
+
+class TTSProviderError(TTSError):
+    """TTS provider failed to synthesize speech."""
+    pass
+
+
+class TTSConfigurationError(TTSError):
+    """Invalid TTS settings, voice, or provider configuration."""
+    pass
+
+
+class TTSTimeoutError(TTSError):
+    """TTS provider request timed out."""
+    pass
+
+
+class TTSAuthenticationError(TTSError):
+    """Invalid or missing API key for the TTS provider."""
+    pass
+
+
+class TTSRateLimitError(TTSError):
+    """API rate limit exceeded for TTS provider."""
+    pass
+
+
+class EmptyTextError(TTSError):
+    """Text provided for synthesis was empty or whitespace only."""
+    pass
+
+
+class TextTooLongError(TTSError):
+    """Text exceeded the maximum supported length for synthesis."""
     pass

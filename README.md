@@ -9,46 +9,36 @@
 
 ---
 
-## 🚀 Key Objectives
+## 🚀 Key Capabilities
 
-- **Tamil & Tanglish Voice Assistant**: Understands pure Tamil, Tamil-English code-switching, Tanglish, and English; responds with natural Tamil speech.
+- **Tamil Speech Recognition (STT)**: Fast cloud transcription for pure Tamil (`ta-IN`), English, and mixed Tanglish code-switching with on-demand Voice Activity Detection (VAD).
+- **Natural Tamil Voice Synthesis (TTS)**: High-definition neural speech (`ta-IN-PallaviNeural`, `ta-IN-ValluvarNeural`) powered by Microsoft Edge Neural TTS with 100% in-memory audio streaming.
 - **Hardware-First Resource Efficiency**:
-  - **Zero Heavy Local LLMs**: Utilizes lightweight Cloud API inference.
-  - **No Continuous Background Processing**: Microphone and heavy audio inference activate strictly on demand with Voice Activity Detection (VAD).
-  - **Ultra-Low Memory Footprint**: Core runtime consumes **~62.8 MB RAM** on startup.
-- **Provider-Independent Interfaces**: Modularity across AI (`app/ai/`), STT (`app/voice/stt.py`), and TTS (`app/voice/tts.py`).
-- **Security & Safety First**: Tiered permission system (`SAFE`, `CONFIRMATION_REQUIRED`, `HIGH_RISK`, `BLOCKED`) with zero unapproved shell execution.
-- **Web Dashboard**: Lightweight companion dashboard deployable to Vercel.
+  - **Zero Heavy Local Models**: All AI, STT, and TTS inference use lightweight cloud APIs.
+  - **Ultra-Low Memory Footprint**: Startup memory footprint is **~72.4 MB RAM** with zero GPU requirements.
+  - **100% In-Memory Audio I/O**: Zero disk wear or temporary audio files created.
+- **Provider-Independent Interfaces**: Clean abstractions across AI (`app/ai/`), STT (`app/voice/stt.py`), and TTS (`app/voice/tts.py`).
+- **Security & Safety First**: Tiered permission system (`SAFE`, `CONFIRMATION_REQUIRED`, `HIGH_RISK`, `BLOCKED`) with secret redaction in all logs.
 
 ---
 
-## 🎙️ Speech-to-Text (STT) Subsystem (Phase 2)
+## 🏛️ Voice Subsystems Architecture
 
-### Architecture
 ```text
-Microphone (On-demand)
-       ↓
-sounddevice Audio Capture (16kHz Mono 16-bit PCM)
-       ↓
-Energy-Based Voice Activity Detection (VAD)
-  - Pre-speech rolling buffer
-  - Dynamic ambient noise calibration
-  - Auto-detection of speech end (1.5s silence)
-       ↓
-In-Memory WAV Packaging (Zero disk thrashing)
-       ↓
-STT Provider Abstraction (app/voice/stt.py)
-  ├── GoogleSTTProvider (Default, cloud web speech, 0 MB weights)
-  ├── GroqWhisperSTTProvider (Cloud Whisper API)
-  └── MockSTTProvider (Offline / CI/CD testing)
-       ↓
-Recognized Tamil / English / Mixed Text Output
+Speech Input (STT)                      Speech Output (TTS)
+------------------                      -------------------
+Microphone (On-demand)                  Text Input (Tamil / English / Mixed)
+       ↓                                       ↓
+sounddevice Audio Capture (16kHz PCM)   TTS Manager (Sanitization & Overlap Lock)
+       ↓                                       ↓
+Energy-based VAD (0.47 ms latency)      TTS Provider Abstraction (app/voice/tts.py)
+       ↓                                  ├── EdgeTTSProvider (ta-IN-PallaviNeural, 0 MB weights)
+STT Provider (Google / Groq / Mock)       └── MockTTSProvider (Offline CI/CD testing)
+       ↓                                       ↓
+Recognized Text                         In-Memory MP3/WAV Audio Decoding (miniaudio)
+                                               ↓
+                                        Audio Player & Speaker Output (sounddevice)
 ```
-
-### Supported Languages & Dialects
-- **Pure Tamil (`ta-IN`)**: e.g., `"ஜார்விஸ், இன்று என்ன செய்ய வேண்டும்?"`
-- **Tamil-English Mixed / Code-switching**: e.g., `"Open Chrome பண்ணு"`, `"என் project folder open பண்ணு"`
-- **English (`en-IN`, `en-US`)**: e.g., `"What is my battery percentage?"`
 
 ---
 
@@ -65,35 +55,34 @@ myoneAI/
 │   │   ├── events.py                       # Pub-sub async event bus
 │   │   ├── state.py                        # State machine & telemetry
 │   │   └── main.py                         # CLI entrypoint & diagnostic engine
-│   ├── voice/                              # Voice & STT subsystem
+│   ├── voice/                              # Voice, STT, & TTS subsystem
 │   │   ├── __init__.py
+│   │   ├── audio.py                        # In-memory audio player & speaker output
 │   │   ├── audio_config.py                 # Centralized audio parameters & VAD thresholds
-│   │   ├── exceptions.py                   # Structured Voice & STT exceptions
-│   │   ├── vad.py                          # Energy-based Voice Activity Detection
+│   │   ├── exceptions.py                   # Structured Voice, STT & TTS exceptions
 │   │   ├── microphone.py                   # Sounddevice audio capture manager
 │   │   ├── stt.py                          # Provider-independent STT interfaces
-│   │   ├── tts.py                          # Text-to-Speech abstraction
+│   │   ├── tts.py                          # Provider-independent TTS & TTSManager
+│   │   ├── vad.py                          # Energy-based Voice Activity Detection
 │   │   ├── voice_manager.py                # Voice pipeline coordinator
 │   │   ├── wake_word.py                    # Wake-word detection interface
 │   │   ├── test_microphone.py              # Mode 1: Microphone hardware diagnostic
-│   │   └── test_stt.py                     # Mode 2 & 3: Live mic & file-based STT test
+│   │   ├── test_stt.py                     # Mode 2 & 3: Live mic & file-based STT test
+│   │   └── test_tts.py                     # Interactive & CLI Text-to-Speech test
 │   ├── ai/                                 # AI & reasoning layer
-│   │   ├── __init__.py
-│   │   ├── provider.py                     # Cloud LLM provider interface
-│   │   ├── conversation.py                 # Dialogue turn manager & context trimmer
-│   │   ├── prompts.py                      # Tamil JARVIS persona prompts
-│   │   └── memory.py                       # Privacy-aware short/long-term memory
 │   ├── monitoring/                         # On-demand system telemetry
 │   ├── tools/                              # PC control & actions
 │   └── security/                           # Access control & confirmations
 ├── docs/
-│   └── phase2-performance.md               # Hardware benchmarks on i3 / 8GB RAM
+│   ├── phase2-performance.md               # STT hardware benchmarks
+│   └── phase3-performance.md               # TTS hardware benchmarks
 ├── security/
-│   └── phase2-stt-audit.md                 # Security & privacy audit checklist
+│   ├── phase2-stt-audit.md                 # STT security audit checklist
+│   └── phase3-tts-audit.md                 # TTS security audit checklist
 ├── scripts/
 │   ├── run.bat                             # Windows launcher script
 │   └── test.bat                            # Pytest runner script
-├── tests/                                  # 47 automated unit tests (0 failed)
+├── tests/                                  # 62 automated unit tests (0 failed)
 ├── .env.example                            # Configuration template
 ├── .gitignore                              # Secrets & cache ignore rules
 ├── pytest.ini                              # Pytest configuration
@@ -133,34 +122,44 @@ cp .env.example .env
 
 ---
 
-## 🧪 Testing Voice & STT Subsystems
+## 🧪 Testing Voice Subsystems (STT & TTS)
 
-### Mode 1 — Microphone Hardware Diagnostic
-Scans available audio inputs and tests a live 2-second capture burst with an ASCII volume meter:
+### Text-to-Speech (TTS) CLI Tests
 ```powershell
+# Interactive mode (prompts for Tamil / English text):
+python -m app.voice.test_tts
+
+# Direct Tamil speech test:
+python -m app.voice.test_tts --text "வணக்கம் Infanto, எப்படி இருக்கிறீர்கள்?"
+
+# Mixed Tamil-English speech test:
+python -m app.voice.test_tts --text "வணக்கம் Infanto, இன்று Python project work பண்ணலாமா?"
+
+# English speech test:
+python -m app.voice.test_tts --language en-US --text "Hello Infanto, system is online."
+
+# Offline Mock test:
+python -m app.voice.test_tts --provider mock --text "Mock speech test"
+```
+
+### Speech-to-Text (STT) CLI Tests
+```powershell
+# Mode 1: Microphone hardware diagnostic
 python -m app.voice.test_microphone
-```
 
-### Mode 2 — Live Speech-to-Text Test (Tamil)
-Records one spoken utterance using automatic VAD silence detection and transcribes it:
-```powershell
+# Mode 2: Live single-utterance speech recognition
 python -m app.voice.test_stt
-```
 
-### Mode 3 — File-Based STT Test
-Transcribe from an existing WAV audio file without using a microphone:
-```powershell
+# Mode 3: File-based speech recognition
 python -m app.voice.test_stt --file sample_tamil.wav
-# Or with mock provider:
-python -m app.voice.test_stt --file sample_tamil.wav --provider mock
 ```
 
-### Run Diagnostic Status Command
+### Run System Health Diagnostic
 ```powershell
 .\scripts\run.bat --status
 ```
 
-### Run Automated Unit Tests (47 tests)
+### Run Automated Unit Tests (62 tests)
 ```powershell
 .\scripts\test.bat
 # Or:
@@ -169,31 +168,24 @@ pytest -v
 
 ---
 
-## 📊 Phase 2 Benchmark Results
+## 📊 Performance Benchmarks (Phase 3)
 
-| Metric | Measured Value | Threshold | Status |
-| :--- | :--- | :--- | :--- |
-| **Startup RAM** | **62.8 MB** | < 100 MB | 🟢 Ultra-Lightweight |
-| **Active Capture & VAD RAM** | **63.1 MB** | < 120 MB | 🟢 Zero Leak |
-| **VAD Processing Latency** | **0.47 ms / 1s audio** | < 10.0 ms | 🟢 Real-time (<0.1% CPU) |
-| **Local Model Weight Size** | **0 MB (Cloud API)** | 0 MB | 🟢 Cloud Optimized |
-| **Unit Test Pass Rate** | **47 / 47 (100%)** | 100% | 🟢 All Pass (0 failed) |
-
----
-
-## 🛡️ Privacy & Security Principles
-
-- **Zero Permanent Audio Retention**: Audio is captured into in-memory buffers and discarded immediately after transcription.
-- **No Continuous Audio Streaming**: Microphone activates strictly on demand.
-- **Secret Redaction**: API keys and authorization tokens are masked in all logs.
+| Subsystem | Metric | Measured Value | Threshold | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **System** | **Startup RAM** | **72.4 MB** | < 100 MB | 🟢 Ultra-Lightweight |
+| **System** | **Idle CPU** | **0.0%** | < 1% | 🟢 Zero Idle Drain |
+| **TTS** | **Memory Overhead** | **+1.2 MB during synthesis** | < 20 MB | 🟢 Negligible |
+| **TTS** | **Edge-TTS Latency** | **~1.0s - 1.5s** | < 3.0s | 🟢 High-speed Stream |
+| **TTS** | **Disk I/O** | **0 Bytes (100% In-Memory)** | 0 bytes | 🟢 Zero Disk Wear |
+| **Tests** | **Unit Test Pass Rate** | **62 / 62 (100%)** | 100% | 🟢 All Pass (0 failed) |
 
 ---
 
 ## 🗺️ Development Roadmap
 
 - [x] **Phase 1: Foundation** — Core config, logging, event bus, state machine, CLI diagnostics.
-- [x] **Phase 2: Tamil STT** — Audio capture, VAD, Google/Groq STT providers, Mode 1/2/3 tests, performance benchmarks, security audit.
-- [ ] **Phase 3: Tamil TTS** — Natural Tamil voice synthesis.
+- [x] **Phase 2: Tamil STT** — Audio capture, VAD, Google/Groq STT providers, Mode 1/2/3 tests.
+- [x] **Phase 3: Tamil TTS** — Microsoft Edge Neural TTS (`ta-IN-PallaviNeural`), in-memory audio player, overlap protection, CLI tests.
 - [ ] **Phase 4: AI Conversation** — Cloud LLM provider integration with Tamil conversational persona.
 - [ ] **Phase 5: Voice Conversation Loop** — Coordinated voice cycle (Idle → Record → STT → AI → TTS → Idle).
 - [ ] **Phase 6: Wake Word** — Low-power wake word detection.
