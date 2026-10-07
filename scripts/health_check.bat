@@ -1,0 +1,16 @@
+@echo off
+setlocal enabledelayedexpansion
+
+title myoneAI Health Diagnostic
+
+cd /d "%~dp0\.."
+
+if exist ".venv\Scripts\python.exe" (
+    set "PYTHON_EXE=.venv\Scripts\python.exe"
+) else (
+    set "PYTHON_EXE=python"
+)
+
+"%PYTHON_EXE%" -m app.core.health
+
+pause
