@@ -11,60 +11,45 @@
 
 ## 🚀 Key Capabilities
 
+- **Controlled AI Memory (Phase 7)**: Persistent, privacy-aware SQLite memory storing user preferences, project facts, and context across sessions with natural language memory commands ("Remember that...", "What do you remember about me?", "Forget that...") and automated sensitive-credential blocking.
 - **Lightweight Wake Word System (Phase 6)**: Hands-free activation via "JARVIS" wake phrase with low-power local acoustic/energy evaluation (< 0.5% idle CPU), debounced cooldown protection, and seamless microphone ownership handover.
 - **Natural Voice Conversation Loop (Phase 5)**: Complete end-to-end conversational pipeline connecting Microphone → Speech Detection (VAD) → Tamil STT → AI Conversation Engine → Tamil TTS → Speaker playback.
 - **AI Brain & Natural Conversation (Phase 4)**: Context-aware conversational intelligence supporting pure Tamil (`ta-IN`), English, and mixed Tanglish code-switching with concise, friendly JARVIS persona.
 - **Tamil Speech Recognition (STT)**: Fast cloud transcription for Tamil, English, and Tanglish with on-demand Voice Activity Detection (VAD).
 - **Natural Tamil Voice Synthesis (TTS)**: High-definition neural speech (`ta-IN-PallaviNeural`, `ta-IN-ValluvarNeural`) with 100% in-memory audio streaming.
 - **Hardware-First Resource Efficiency**:
+  - **Zero Heavy Local LLMs / Vector DBs**: Pure SQLite local store + Cloud API inference.
   - **Zero Continuous Cloud Audio Upload**: Background wake listening evaluates audio locally without streaming ambient sound to cloud APIs.
-  - **Zero Heavy Local LLMs**: Utilizes lightweight Cloud API inference (Gemini / OpenAI REST).
-  - **Ultra-Low Memory Footprint**: Baseline memory footprint is **~72.0 MB RAM** with zero background polling.
-  - **Bounded Short-Term Context**: Strict FIFO history management (`AI_MAX_HISTORY_MESSAGES=12`) prevents memory and token bloat.
+  - **Ultra-Low Memory Footprint**: Baseline memory footprint is **~46.4 MB RAM** with zero background polling.
+  - **Bounded Memory Context**: Hard cap of `MEMORY_MAX_RESULTS=5` and `MEMORY_MAX_CONTEXT_CHARS=3000` prevents token bloat.
   - **100% In-Memory Audio**: Audio buffers are processed purely in volatile RAM, eliminating temporary files and disk wear.
-- **Provider-Independent Interfaces**: Clean abstractions across Wake Word (`app/voice/wakeword_provider.py`), AI (`app/ai/provider.py`), STT (`app/voice/stt.py`), and TTS (`app/voice/tts.py`).
 - **Safety & Truth Boundaries**: Enforces **No-Fake-Actions** rule — the assistant will never claim to perform actions it has not executed.
 
 > [!NOTE]
-> Wake-word detection is optional and can be disabled via `WAKE_WORD_ENABLED=false`. Manual voice mode remains available as a fallback via `python -m app.voice.conversation`.
+> myoneAI does not permanently store every conversation. Only approved/useful memories are stored. Memory can be disabled via `MEMORY_ENABLED=false`.
 
 ---
 
 ## 🏛️ System Architecture
 
 ```text
-Idle State
-    ↓
-Low-Power Wake Word Listener (Local Energy & Keyword Matching)
-    ↓
-"JARVIS" Detected (< 15 ms latency)
-    ↓
-Microphone Stream Paused & Handed Over
-    ↓
-Optional Short Wake Response ("சொல்லுங்க.")
-    ↓
-Speech Detection & VAD (0.47 ms energy check)
-    ↓
-Tamil STT Provider (Google / Groq Whisper)
-    ↓
-Conversation Manager (Bounded 12-turn FIFO Context)
-    ↓
+User Speech / Text
+       ↓
+Wake Word Detector ("JARVIS")
+       ↓
+Memory Intent / Privacy Filter (Rejects Passwords/Tokens)
+       ↓
+SQLite Memory Store (`data/memory.db`)
+       ↓
+Token Relevance Retriever (Top 5 Contextual Memories)
+       ↓
+AI Conversation Manager (Persona + Relevant Memory Context)
+       ↓
 AI Provider (Gemini / OpenAI / Groq)
-    ↓
-Tamil TTS Manager (Microsoft Edge Neural `ta-IN-PallaviNeural`)
-    ↓
-In-Memory Audio Decoder & Player (miniaudio / sounddevice)
-    ↓
-Speaker Output
-    ↓
-Wake Listener Resumes & Returns to Idle
-```
-
-### State Machine Lifecycle
-```text
-  IDLE ───> WAKE_LISTENING ───> WAKE_DETECTED ───> ACTIVATING ───> LISTENING ───> THINKING ───> SPEAKING ───> IDLE
-   ▲                                                                                                           │
-   └─────────────────────────────────── [ERROR / CANCEL] ──────────────────────────────────────────────────────┘
+       ↓
+Tamil Neural TTS (`ta-IN-PallaviNeural`)
+       ↓
+Speaker Audio Playback
 ```
 
 ---
@@ -81,11 +66,19 @@ myoneAI/
 │   │   ├── logging_config.py               # Rotating log handler & credential redactor
 │   │   ├── events.py                       # Pub-sub async event bus
 │   │   ├── state.py                        # State machine & telemetry
-│   │   └── main.py                         # CLI entrypoint & diagnostic engine
+│   │   ├── main.py                         # CLI entrypoint & diagnostic engine
+│   │   └── memory/                         # Controlled AI Memory System (Phase 7)
+│   │       ├── __init__.py
+│   │       ├── models.py                   # MemoryItem, MemoryCategory, MemorySource
+│   │       ├── privacy.py                  # Sensitive credential filter & regex rejection
+│   │       ├── store.py                    # SQLite persistence engine & upsert
+│   │       ├── retrieval.py                # Bounded keyword & token relevance scoring
+│   │       ├── manager.py                  # MemoryManager & natural command parser
+│   │       └── test_memory.py              # Interactive & automated CLI test utility
 │   ├── ai/                                 # AI Conversation Engine (Phase 4)
 │   │   ├── __init__.py
 │   │   ├── errors.py                       # Structured AI & provider exceptions
-│   │   ├── manager.py                      # Conversation context manager & FIFO trimmer
+│   │   ├── manager.py                      # Conversation manager & memory context injector
 │   │   ├── models.py                       # ChatMessage, AIRequestConfig, AIResponse schemas
 │   │   ├── prompts.py                      # JARVIS Tamil persona & No-Fake-Actions rules
 │   │   ├── provider.py                     # Provider abstraction (Gemini, OpenAI, Mock)
@@ -121,19 +114,22 @@ myoneAI/
 │   ├── phase5-performance.md               # Voice conversation loop benchmarks
 │   ├── phase5-privacy.md                   # Voice privacy & audio lifecycle details
 │   ├── phase6-performance.md               # Wake word system benchmarks
-│   └── phase6-privacy.md                   # Wake word privacy & audio lifecycle details
+│   ├── phase6-privacy.md                   # Wake word privacy & audio lifecycle details
+│   ├── phase7-performance.md               # AI Memory benchmarks & latency
+│   └── phase7-privacy.md                   # AI Memory privacy & credential policies
 ├── security/
 │   ├── phase2-stt-audit.md                 # STT security audit checklist
 │   ├── phase3-tts-audit.md                 # TTS security audit checklist
 │   ├── phase4-ai-audit.md                  # AI Conversation security audit checklist
 │   ├── phase5-voice-loop-audit.md          # Voice loop security audit checklist
-│   └── phase6-wakeword-audit.md            # Wake word security audit checklist
+│   ├── phase6-wakeword-audit.md            # Wake word security audit checklist
+│   └── phase7-memory-audit.md              # AI Memory security audit checklist
 ├── scripts/
 │   ├── run.bat                             # Windows launcher script
 │   └── test.bat                            # Pytest runner script
-├── tests/                                  # 96 automated unit/integration tests (0 failed)
+├── tests/                                  # 106 automated unit/integration tests (0 failed)
 ├── .env.example                            # Configuration template
-├── .gitignore                              # Secrets & cache ignore rules
+├── .gitignore                              # Secrets, SQLite databases & cache ignore rules
 ├── pytest.ini                              # Pytest configuration
 ├── requirements.txt                        # Lightweight dependencies
 └── README.md
@@ -172,26 +168,42 @@ Add your API key (e.g. `AI_API_KEY=your_gemini_api_key_here`).
 
 ---
 
+## 🧠 Controlled AI Memory Commands (Phase 7)
+
+### Natural Memory Interactions
+- **Remembering Facts**:
+  - *"Remember that my project is called Vibrawave"*
+  - *"Remember that I prefer Tamil responses"*
+  - *"எனக்கு தமிழ் பிடிக்கும் நினைவில் வைத்துக்கொள்"*
+- **Inspecting Saved Memories**:
+  - *"What do you remember about me?"*
+  - *"என்னை பற்றி என்ன நினைவிருக்கிறது?"*
+- **Deleting Memories**:
+  - *"Forget that my project is Vibrawave"*
+  - *"Forget my project information"*
+- **Clearing All Memories**:
+  - *"Clear all memories"* → Requires explicit confirmation (*"Yes, clear memories"*).
+
+### Memory CLI Management Tool
+```powershell
+# Interactive memory management:
+python -m app.core.memory.test_memory
+
+# Automated verification demo:
+python -m app.core.memory.test_memory --demo
+```
+
+---
+
 ## 🤖 Hands-Free JARVIS Usage (Phase 6)
 
 ### Main Hands-Free Assistant
-Listens continuously for "JARVIS", provides a short acknowledgement ("சொல்லுங்க."), and flows seamlessly into Tamil conversation:
 ```powershell
 # Live assistant with microphone:
 python -m app.voice.jarvis
 
 # Offline mock simulation without hardware:
 python -m app.voice.jarvis --mock
-```
-
-### Wake Word Detection Diagnostic
-Test wake phrase detection independently:
-```powershell
-# Live wake word test:
-python -m app.voice.test_wakeword
-
-# Offline mock test:
-python -m app.voice.test_wakeword --mock
 ```
 
 ---
@@ -212,17 +224,7 @@ python -m app.voice.conversation --interactive
 python -m app.ai.test_ai
 ```
 
-### Text-to-Speech (TTS) CLI Test (Phase 3)
-```powershell
-python -m app.voice.test_tts --text "வணக்கம் Infanto, எப்படி இருக்கிறீர்கள்?"
-```
-
-### Speech-to-Text (STT) CLI Test (Phase 2)
-```powershell
-python -m app.voice.test_stt
-```
-
-### Run All Automated Unit Tests (96 tests)
+### Run All Automated Unit Tests (106 tests)
 ```powershell
 .\scripts\test.bat
 # Or:
@@ -231,20 +233,18 @@ pytest -v
 
 ---
 
-## 📊 Performance Benchmarks (Phase 6)
+## 📊 Performance Benchmarks (Phase 7)
 
 | Subsystem | Metric | Measured Value | Threshold | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **System** | **Startup RAM** | **72.0 MB** | < 100 MB | 🟢 Ultra-Lightweight |
-| **Wake Listener** | **Idle Wake Listening RAM** | **72.0 MB** | < 100 MB | 🟢 Zero Leak |
-| **Wake Listener** | **Idle Wake CPU** | **< 0.5% CPU** | < 3.0% CPU | 🟢 Power Efficient |
-| **Wake Listener** | **Wake Trigger Latency** | **12.14 ms** | < 100 ms | 🟢 Real-time Trigger |
-| **Voice Loop** | **Active Turn RAM Overhead** | **+2.90 MB RAM** | < 50 MB | 🟢 Zero Leak |
-| **Speech VAD** | **VAD Chunk Processing Time** | **0.47 ms / 1s audio** | < 10 ms | 🟢 Real-time (<0.1% CPU) |
-| **Local Models**| **Local Model Weight Size** | **0 MB (Cloud APIs)** | 0 MB | 🟢 Cloud Optimized |
-| **Continuous Upload** | **Background Cloud Stream**| **0 Bytes / sec** | 0 cloud stream | 🟢 100% Local Wake Engine |
-| **Disk I/O** | **Temporary Audio Files** | **0 Bytes (RAM only)** | 0 disk writes | 🟢 Zero SSD Thrashing |
-| **Tests** | **Unit & Integration Test Pass Rate** | **96 / 96 (100%)** | 100% | 🟢 All Pass (0 failed) |
+| **System** | **Startup RAM** | **46.4 MB** | < 100 MB | 🟢 Ultra-Lightweight |
+| **Memory Store**| **Database Init Time** | **16.83 ms** | < 100 ms | 🟢 Near-instant SQLite |
+| **Memory Store**| **Average Insertion Latency** | **7.85 ms** | < 50 ms | 🟢 Real-time Write |
+| **Memory Store**| **Average Search Latency** | **1.17 ms** | < 20 ms | 🟢 Fast Index Lookup |
+| **Memory Store**| **Context Retrieval Latency** | **1.50 ms** | < 20 ms | 🟢 Real-time Ranking |
+| **Memory Store**| **50 Items DB Size on Disk** | **32.0 KB** | < 1.0 MB | 🟢 Negligible Storage |
+| **Prompt Limit**| **Max Memory Prompt Context** | **<= 3,000 chars** | < 4,000 chars | 🟢 Token Bound Enforced |
+| **Tests** | **Unit & Integration Test Pass Rate** | **106 / 106 (100%)**| 100% | 🟢 All Pass (0 failed) |
 
 ---
 
@@ -256,7 +256,7 @@ pytest -v
 - [x] **Phase 4: AI Conversation** — Cloud LLM provider abstraction (Gemini / OpenAI), JARVIS Tamil persona, short-term context window, safety boundaries.
 - [x] **Phase 5: Voice Conversation Loop** — Coordinated voice cycle (Idle → Record → STT → AI → TTS → Idle), interactive mode, mock simulation, and interrupt safety.
 - [x] **Phase 6: Wake Word** — Low-power local wake word detection, debouncing cooldown, microphone ownership handover, and hands-free JARVIS runtime.
-- [ ] **Phase 7: Memory** — Privacy-aware short-term and persistent preference memory.
+- [x] **Phase 7: Memory** — Controlled AI memory, SQLite persistence, relevance retrieval, privacy filter, natural memory commands.
 - [ ] **Phase 8: PC Tools** — Whitelisted local PC actions.
 - [ ] **Phase 9: Permission & Security System** — Tiered permission engine.
 - [ ] **Phase 10: System Monitoring** — On-demand telemetry reports.

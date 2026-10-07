@@ -14,22 +14,25 @@ from app.ai.prompts import SYSTEM_PROMPT_TAMIL_JARVIS
 from app.ai.provider import BaseAIProvider, get_ai_provider
 from app.core.config import get_settings
 from app.core.events import AIEvent, event_bus
+from app.core.memory.manager import MemoryManager, memory_manager
 
 logger = logging.getLogger("myoneAI.ai.manager")
 
 
 class ConversationManager:
-    """Manages short-term conversation history, prompt construction, and AI responses."""
+    """Manages short-term conversation history, prompt construction, memory injection, and AI responses."""
 
     def __init__(
         self,
         provider: Optional[BaseAIProvider] = None,
+        memory: Optional[MemoryManager] = None,
         max_history_messages: Optional[int] = None,
         system_prompt: Optional[str] = None,
         request_config: Optional[AIRequestConfig] = None,
     ) -> None:
         settings = get_settings()
         self.provider = provider or get_ai_provider()
+        self.memory = memory or memory_manager
         self.max_history_messages = max_history_messages or settings.ai_max_history_messages
         self.system_prompt = system_prompt or SYSTEM_PROMPT_TAMIL_JARVIS
         self.request_config = request_config or AIRequestConfig(
@@ -91,23 +94,47 @@ class ConversationManager:
         clean_prompt = self.sanitize_input(user_text)
 
         async with self._lock:
-            # 1. Append user message to short-term history
+            # 1. Process explicit memory commands if memory system is enabled
+            settings = get_settings()
+            if settings.memory_enabled and self.memory:
+                try:
+                    memory_reply = await self.memory.process_memory_command(clean_prompt)
+                    if memory_reply:
+                        user_msg = ChatMessage(role="user", content=clean_prompt)
+                        assistant_msg = ChatMessage(role="assistant", content=memory_reply)
+                        self._history.append(user_msg)
+                        self._history.append(assistant_msg)
+                        self._trim_history()
+                        event_bus.emit(AIEvent.USER_MESSAGE, {"text": clean_prompt})
+                        event_bus.emit(AIEvent.AI_RESPONSE, {"text": memory_reply, "provider": "memory_engine"})
+                        return memory_reply
+                except Exception as mem_err:
+                    logger.warning("Error processing memory command: %s", mem_err)
+
+            # 2. Append user message to short-term history
             user_msg = ChatMessage(role="user", content=clean_prompt)
             self._history.append(user_msg)
             self._trim_history()
 
             event_bus.emit(AIEvent.USER_MESSAGE, {"text": clean_prompt})
 
-            # 2. Build payload for provider
+            # 3. Build relevant memory context prompt
+            effective_system_prompt = self.system_prompt
+            if settings.memory_enabled and self.memory:
+                memory_ctx = self.memory.get_context_for_prompt(clean_prompt)
+                if memory_ctx:
+                    effective_system_prompt = f"{self.system_prompt}\n{memory_ctx}"
+
+            # 4. Build payload for provider
             messages_payload = [m.to_dict() for m in self._history]
 
             logger.info("Generating AI reply (Context size: %d messages)...", len(messages_payload))
 
-            # 3. Call AI provider
+            # 5. Call AI provider
             try:
                 ai_resp = await self.provider.generate(
                     messages=messages_payload,
-                    system_prompt=self.system_prompt,
+                    system_prompt=effective_system_prompt,
                     config=self.request_config,
                 )
             except Exception as exc:
@@ -117,14 +144,14 @@ class ConversationManager:
                     self._history.pop()
                 raise
 
-            # 4. Validate response
+            # 6. Validate response
             reply_text = ai_resp.content.strip()
             if not reply_text:
                 if self._history and self._history[-1] is user_msg:
                     self._history.pop()
                 raise AIResponseError("AI provider returned blank response.")
 
-            # 5. Append assistant turn
+            # 7. Append assistant turn
             assistant_msg = ChatMessage(role="assistant", content=reply_text)
             self._history.append(assistant_msg)
             self._trim_history()

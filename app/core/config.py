@@ -92,6 +92,13 @@ class Settings(BaseSettings):
         description="Whether system/destructive actions require explicit user confirmation",
     )
 
+    # AI Memory Settings (Phase 7)
+    memory_enabled: bool = Field(default=True, description="Enable long-term controlled AI memory")
+    memory_max_results: int = Field(default=5, description="Maximum relevant memory items retrieved for AI prompt context")
+    memory_max_context_chars: int = Field(default=3000, description="Maximum total character length for memory prompt context")
+    memory_require_confirmation: bool = Field(default=True, description="Require confirmation before clear/destructive memory actions")
+    memory_database_path: str = Field(default="data/memory.db", description="SQLite database path for structured memories")
+
     # Web Dashboard Settings
     web_api_url: str = Field(default="http://localhost:8000", description="Backend/Vercel API URL")
 
@@ -110,6 +117,14 @@ class Settings(BaseSettings):
     def data_path(self) -> Path:
         """Return the absolute path to data directory."""
         return self.base_dir / "data"
+
+    @property
+    def memory_db_path(self) -> Path:
+        """Return the absolute path to SQLite memory database."""
+        db_p = Path(self.memory_database_path)
+        if db_p.is_absolute():
+            return db_p
+        return self.base_dir / db_p
 
     @property
     def is_ai_configured(self) -> bool:

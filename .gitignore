@@ -45,6 +45,12 @@ logs/*.log
 # Data & Runtime Storage
 data/*
 !data/.gitkeep
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+*.db
+*.sqlite
+*.sqlite3
 
 # Testing & Coverage
 .pytest_cache/
