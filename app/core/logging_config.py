@@ -12,31 +12,28 @@ from typing import Optional
 
 # Sensitive patterns to redact from logs
 SENSITIVE_PATTERNS = [
-    re.compile(r"(api[_-]?key\s*[:=]\s*['\"]?)([^'\"\s]+)", re.IGNORECASE),
+    re.compile(r"((?:api[_-]?)?key\s*[:=]\s*['\"]?)([^'\"\s]+)", re.IGNORECASE),
     re.compile(r"(password\s*[:=]\s*['\"]?)([^'\"\s]+)", re.IGNORECASE),
     re.compile(r"(token\s*[:=]\s*['\"]?)([^'\"\s]+)", re.IGNORECASE),
     re.compile(r"(secret\s*[:=]\s*['\"]?)([^'\"\s]+)", re.IGNORECASE),
     re.compile(r"(bearer\s+)([a-zA-Z0-9_\-\.]+)", re.IGNORECASE),
+    re.compile(r"\b(sk-[a-zA-Z0-9_\-]{8,})\b", re.IGNORECASE),
 ]
+
 
 
 class SensitiveDataFilter(logging.Filter):
     """Filter that masks API keys, passwords, and tokens in log messages."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        if isinstance(record.msg, str):
-            record.msg = self.mask_sensitive_text(record.msg)
-        if record.args:
-            if isinstance(record.args, tuple):
-                record.args = tuple(
-                    self.mask_sensitive_text(arg) if isinstance(arg, str) else arg
-                    for arg in record.args
-                )
-            elif isinstance(record.args, dict):
-                record.args = {
-                    k: self.mask_sensitive_text(v) if isinstance(v, str) else v
-                    for k, v in record.args.items()
-                }
+        try:
+            if record.args:
+                record.msg = record.getMessage()
+                record.args = None
+            if isinstance(record.msg, str):
+                record.msg = self.mask_sensitive_text(record.msg)
+        except Exception:
+            pass
         return True
 
     @staticmethod
@@ -45,6 +42,7 @@ class SensitiveDataFilter(logging.Filter):
         for pattern in SENSITIVE_PATTERNS:
             text = pattern.sub(r"\1[REDACTED]", text)
         return text
+
 
 
 def setup_logging(

@@ -15,17 +15,31 @@ from app.ai.provider import BaseAIProvider, get_ai_provider
 from app.core.config import get_settings
 from app.core.events import AIEvent, event_bus
 from app.core.memory.manager import MemoryManager, memory_manager
+from app.security.permissions import PermissionManager, permission_manager
+from app.tools.executor import ToolExecutor, tool_executor
+from app.tools.intent import parse_tool_intent
+from app.tools.schemas import ToolCall
 
 logger = logging.getLogger("myoneAI.ai.manager")
 
+# Confirmation keywords
+CONFIRM_POSITIVE_PATTERNS = re.compile(
+    r"(?i)\b(?:yes|confirm|proceed|sure|ok|okay|do it|continue|go ahead)\b|ஆம்|சரி|செய்|உறுதிப்படுத்துகிறேன்|கண்டிப்பா"
+)
+CONFIRM_NEGATIVE_PATTERNS = re.compile(
+    r"(?i)\b(?:no|cancel|stop|abort|don'?t|nevermind)\b|வேண்டாம்|நிறுத்து|இல்லை|ரத்து"
+)
+
 
 class ConversationManager:
-    """Manages short-term conversation history, prompt construction, memory injection, and AI responses."""
+    """Manages short-term conversation history, prompt construction, memory injection, tools, and AI responses."""
 
     def __init__(
         self,
         provider: Optional[BaseAIProvider] = None,
         memory: Optional[MemoryManager] = None,
+        tools: Optional[ToolExecutor] = None,
+        permissions: Optional[PermissionManager] = None,
         max_history_messages: Optional[int] = None,
         system_prompt: Optional[str] = None,
         request_config: Optional[AIRequestConfig] = None,
@@ -33,7 +47,10 @@ class ConversationManager:
         settings = get_settings()
         self.provider = provider or get_ai_provider()
         self.memory = memory or memory_manager
+        self.permissions = permissions or permission_manager
+        self.tools = tools or ToolExecutor(permissions=self.permissions)
         self.max_history_messages = max_history_messages or settings.ai_max_history_messages
+
         self.system_prompt = system_prompt or SYSTEM_PROMPT_TAMIL_JARVIS
         self.request_config = request_config or AIRequestConfig(
             temperature=settings.ai_temperature,
@@ -94,8 +111,61 @@ class ConversationManager:
         clean_prompt = self.sanitize_input(user_text)
 
         async with self._lock:
-            # 1. Process explicit memory commands if memory system is enabled
             settings = get_settings()
+
+            # 1. Handle Pending Confirmation if active
+            pending = self.permissions.get_pending_confirmation() if self.permissions else None
+            if pending and not pending.is_expired():
+                if CONFIRM_POSITIVE_PATTERNS.search(clean_prompt):
+                    consumed = self.permissions.consume_confirmation(pending.token)
+                    if consumed:
+                        tool_call = ToolCall(tool=consumed.tool_name, arguments=consumed.arguments)
+                        tool_res = await self.tools.execute(tool_call, confirmed=True)
+                        reply = tool_res.message
+
+                        user_msg = ChatMessage(role="user", content=clean_prompt)
+                        assistant_msg = ChatMessage(role="assistant", content=reply)
+                        self._history.append(user_msg)
+                        self._history.append(assistant_msg)
+                        self._trim_history()
+
+                        event_bus.emit(AIEvent.USER_MESSAGE, {"text": clean_prompt})
+                        event_bus.emit(AIEvent.AI_RESPONSE, {"text": reply, "provider": "tool_executor"})
+                        return reply
+
+                elif CONFIRM_NEGATIVE_PATTERNS.search(clean_prompt):
+                    self.permissions.cancel_all_confirmations()
+                    reply = "Action cancelled. செயல் ரத்து செய்யப்பட்டது."
+                    user_msg = ChatMessage(role="user", content=clean_prompt)
+                    assistant_msg = ChatMessage(role="assistant", content=reply)
+                    self._history.append(user_msg)
+                    self._history.append(assistant_msg)
+                    self._trim_history()
+
+                    event_bus.emit(AIEvent.USER_MESSAGE, {"text": clean_prompt})
+                    event_bus.emit(AIEvent.AI_RESPONSE, {"text": reply, "provider": "permission_manager"})
+                    return reply
+
+            # 2. Process Tools intent if tools are enabled
+            if settings.tools_enabled and self.tools:
+                tool_call = parse_tool_intent(clean_prompt)
+                if tool_call:
+                    try:
+                        tool_res = await self.tools.execute(tool_call)
+                        reply = tool_res.message
+                        user_msg = ChatMessage(role="user", content=clean_prompt)
+                        assistant_msg = ChatMessage(role="assistant", content=reply)
+                        self._history.append(user_msg)
+                        self._history.append(assistant_msg)
+                        self._trim_history()
+
+                        event_bus.emit(AIEvent.USER_MESSAGE, {"text": clean_prompt})
+                        event_bus.emit(AIEvent.AI_RESPONSE, {"text": reply, "provider": "tool_executor"})
+                        return reply
+                    except Exception as tool_err:
+                        logger.warning("Error running tool: %s", tool_err)
+
+            # 3. Process explicit memory commands if memory system is enabled
             if settings.memory_enabled and self.memory:
                 try:
                     memory_reply = await self.memory.process_memory_command(clean_prompt)
@@ -111,26 +181,26 @@ class ConversationManager:
                 except Exception as mem_err:
                     logger.warning("Error processing memory command: %s", mem_err)
 
-            # 2. Append user message to short-term history
+            # 4. Append user message to short-term history
             user_msg = ChatMessage(role="user", content=clean_prompt)
             self._history.append(user_msg)
             self._trim_history()
 
             event_bus.emit(AIEvent.USER_MESSAGE, {"text": clean_prompt})
 
-            # 3. Build relevant memory context prompt
+            # 5. Build relevant memory context prompt
             effective_system_prompt = self.system_prompt
             if settings.memory_enabled and self.memory:
                 memory_ctx = self.memory.get_context_for_prompt(clean_prompt)
                 if memory_ctx:
                     effective_system_prompt = f"{self.system_prompt}\n{memory_ctx}"
 
-            # 4. Build payload for provider
+            # 6. Build payload for provider
             messages_payload = [m.to_dict() for m in self._history]
 
             logger.info("Generating AI reply (Context size: %d messages)...", len(messages_payload))
 
-            # 5. Call AI provider
+            # 7. Call AI provider
             try:
                 ai_resp = await self.provider.generate(
                     messages=messages_payload,
@@ -144,14 +214,14 @@ class ConversationManager:
                     self._history.pop()
                 raise
 
-            # 6. Validate response
+            # 8. Validate response
             reply_text = ai_resp.content.strip()
             if not reply_text:
                 if self._history and self._history[-1] is user_msg:
                     self._history.pop()
                 raise AIResponseError("AI provider returned blank response.")
 
-            # 7. Append assistant turn
+            # 9. Append assistant turn
             assistant_msg = ChatMessage(role="assistant", content=reply_text)
             self._history.append(assistant_msg)
             self._trim_history()

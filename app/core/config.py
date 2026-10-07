@@ -92,6 +92,15 @@ class Settings(BaseSettings):
         description="Whether system/destructive actions require explicit user confirmation",
     )
 
+    # PC Assistant Tools Settings (Phase 8)
+    tools_enabled: bool = Field(default=True, description="Enable local PC assistant tools")
+    tool_default_timeout: float = Field(default=10.0, description="Default tool execution timeout in seconds")
+    tool_confirmation_timeout: float = Field(default=30.0, description="Pending confirmation expiry timeout in seconds")
+    allowed_directories: str = Field(default="", description="Comma-separated allowed directories for filesystem tools")
+    allowed_applications: str = Field(default="", description="Comma-separated custom allowed application mappings")
+    screenshot_directory: str = Field(default="data/screenshots", description="Directory path to save screenshots")
+    screenshot_retention_days: int = Field(default=7, description="Number of days to retain screenshots before cleanup")
+
     # AI Memory Settings (Phase 7)
     memory_enabled: bool = Field(default=True, description="Enable long-term controlled AI memory")
     memory_max_results: int = Field(default=5, description="Maximum relevant memory items retrieved for AI prompt context")
@@ -125,6 +134,14 @@ class Settings(BaseSettings):
         if db_p.is_absolute():
             return db_p
         return self.base_dir / db_p
+
+    @property
+    def screenshot_dir_path(self) -> Path:
+        """Return the absolute path to screenshot directory."""
+        s_p = Path(self.screenshot_directory)
+        if s_p.is_absolute():
+            return s_p
+        return self.base_dir / s_p
 
     @property
     def is_ai_configured(self) -> bool:
