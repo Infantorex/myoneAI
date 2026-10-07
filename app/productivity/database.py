@@ -50,13 +50,18 @@ class ProductivityDatabase:
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:
-        """Create a connection with row factory and foreign keys enabled."""
+        """Create a connection with row factory, foreign keys, and performance pragmas."""
         if self.db_path == ":memory:" and self._mem_conn is not None:
             return self._mem_conn
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(self.db_path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
+        if self.db_path != ":memory:":
+            conn.execute("PRAGMA journal_mode = WAL;")
+            conn.execute("PRAGMA synchronous = NORMAL;")
+        conn.execute("PRAGMA cache_size = -2000;")
+        conn.execute("PRAGMA temp_store = MEMORY;")
         return conn
 
     def _close_connection(self, conn: sqlite3.Connection) -> None:
@@ -85,6 +90,8 @@ class ProductivityDatabase:
                 """)
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_due_at ON tasks(due_at)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_status_due ON tasks(status, due_at)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_updated ON tasks(updated_at DESC)")
 
                 # 2. Reminders Table
                 cursor.execute("""
@@ -100,6 +107,7 @@ class ProductivityDatabase:
                 """)
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_reminders_status ON reminders(status)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_reminders_trigger_at ON reminders(trigger_at)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_reminders_status_trigger ON reminders(status, trigger_at)")
 
                 # 3. Notes Table
                 cursor.execute("""
@@ -113,6 +121,7 @@ class ProductivityDatabase:
                     )
                 """)
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_notes_title ON notes(title)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_notes_updated ON notes(updated_at DESC)")
                 conn.commit()
             except Exception as exc:
                 logger.error("Failed to initialize productivity database: %s", exc)

@@ -25,10 +25,16 @@ class SQLiteMemoryStore:
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:
-        """Create a new SQLite connection with row factory."""
+        """Create a new SQLite connection with row factory and performance pragmas."""
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
         conn.row_factory = sqlite3.Row
+        # Performance Pragmas for low RAM & fast disk I/O
+        if str(self.db_path) != ":memory:":
+            conn.execute("PRAGMA journal_mode = WAL;")
+            conn.execute("PRAGMA synchronous = NORMAL;")
+        conn.execute("PRAGMA cache_size = -2000;")  # ~2MB cache
+        conn.execute("PRAGMA temp_store = MEMORY;")
         return conn
 
     def _init_db(self) -> None:
@@ -51,6 +57,8 @@ class SQLiteMemoryStore:
                 """)
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_category ON memories (category)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_key ON memories (key)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_updated ON memories (updated_at DESC)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_cat_key ON memories (category, key)")
                 conn.commit()
             logger.debug("Memory SQLite database initialized at '%s'", self.db_path)
 

@@ -116,9 +116,9 @@ class MonitoringManager:
         return dispatched
 
     async def _background_loop(self) -> None:
-        """Periodic background evaluation loop."""
-        interval = max(5, int(getattr(self.settings, "monitoring_interval_seconds", 60)))
-        logger.info("System monitoring background task started (interval=%ds)", interval)
+        """Periodic background evaluation loop with adaptive battery power awareness."""
+        base_interval = max(5, int(getattr(self.settings, "monitoring_interval_seconds", 60)))
+        logger.info("System monitoring background task started (base_interval=%ds)", base_interval)
 
         while self._is_running:
             try:
@@ -128,8 +128,18 @@ class MonitoringManager:
             except Exception as exc:
                 logger.error("Error in monitoring background loop: %s", exc, exc_info=True)
 
+            # Battery-Aware Optimization: throttles monitoring duty-cycle on battery power
+            current_interval = base_interval
             try:
-                await asyncio.sleep(interval)
+                bat = get_battery_metrics()
+                if bat.is_available and not bat.power_plugged:
+                    # Double interval on battery to conserve CPU duty cycle and power
+                    current_interval = min(120, base_interval * 2)
+            except Exception:
+                current_interval = base_interval
+
+            try:
+                await asyncio.sleep(current_interval)
             except asyncio.CancelledError:
                 break
 

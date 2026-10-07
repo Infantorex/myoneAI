@@ -797,6 +797,23 @@ document.addEventListener("DOMContentLoaded", () => {
   // Initial load
   loadDashboardData();
 
-  // Start periodic status polling
-  statusIntervalId = setInterval(pollStatus, refreshIntervalSeconds * 1000);
+  // Start periodic status polling with Page Visibility API optimization
+  function startStatusPolling(intervalSec = 10) {
+    if (statusIntervalId) clearInterval(statusIntervalId);
+    statusIntervalId = setInterval(pollStatus, intervalSec * 1000);
+  }
+
+  startStatusPolling(refreshIntervalSeconds);
+
+  // Background tab optimization: reduce polling duty cycle when tab is inactive
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      // Slow down to 30s when tab is in background to save CPU/battery
+      startStatusPolling(30);
+    } else {
+      // Immediately refresh and resume 10s polling when user returns
+      pollStatus();
+      startStatusPolling(refreshIntervalSeconds);
+    }
+  });
 });

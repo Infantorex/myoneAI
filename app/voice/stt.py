@@ -10,7 +10,6 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Optional, Union
-import speech_recognition as sr
 import httpx
 
 from app.core.config import get_settings
@@ -85,7 +84,15 @@ class GoogleSTTProvider(BaseSTT):
     def __init__(self, api_key: Optional[str] = None, timeout_sec: float = 8.0) -> None:
         self.api_key = api_key
         self.timeout_sec = timeout_sec
-        self.recognizer = sr.Recognizer()
+        self._recognizer = None
+
+    @property
+    def recognizer(self):
+        """Lazy-loaded speech_recognition Recognizer instance."""
+        if self._recognizer is None:
+            import speech_recognition as sr
+            self._recognizer = sr.Recognizer()
+        return self._recognizer
 
     async def transcribe(
         self,
@@ -102,6 +109,7 @@ class GoogleSTTProvider(BaseSTT):
 
         def _recognize() -> str:
             try:
+                import speech_recognition as sr
                 with sr.AudioFile(audio_io) as source:
                     audio_record = self.recognizer.record(source)
                 return self.recognizer.recognize_google(
@@ -109,17 +117,18 @@ class GoogleSTTProvider(BaseSTT):
                     key=self.api_key if self.api_key else None,
                     language=language,
                 )
-            except sr.UnknownValueError:
-                raise NoSpeechDetectedError("No intelligible speech detected.")
-            except sr.RequestError as req_err:
-                err_msg = str(req_err).lower()
-                if "quota" in err_msg or "rate limit" in err_msg:
-                    raise STTRateLimitError(f"Google STT rate limit exceeded: {req_err}") from req_err
-                if "invalid key" in err_msg or "auth" in err_msg:
-                    raise STTAuthenticationError(f"Google STT auth error: {req_err}") from req_err
-                raise STTProviderError(f"Google STT network/service error: {req_err}") from req_err
-            except Exception as exc:
-                raise STTError(f"Audio processing error: {exc}") from exc
+            except Exception as e:
+                import speech_recognition as sr
+                if isinstance(e, sr.UnknownValueError):
+                    raise NoSpeechDetectedError("No intelligible speech detected.")
+                elif isinstance(e, sr.RequestError):
+                    err_msg = str(e).lower()
+                    if "quota" in err_msg or "rate limit" in err_msg:
+                        raise STTRateLimitError(f"Google STT rate limit exceeded: {e}") from e
+                    if "invalid key" in err_msg or "auth" in err_msg:
+                        raise STTAuthenticationError(f"Google STT auth error: {e}") from e
+                    raise STTProviderError(f"Google STT network/service error: {e}") from e
+                raise STTError(f"Audio processing error: {e}") from e
             finally:
                 audio_io.close()
 

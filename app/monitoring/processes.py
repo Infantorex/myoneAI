@@ -3,6 +3,7 @@
 Identifies top CPU and memory consuming processes on demand without continuous process table scanning.
 """
 
+import heapq
 import logging
 from typing import List, Optional
 import psutil
@@ -12,22 +13,11 @@ from app.monitoring.models import ProcessItem, ProcessMetrics
 logger = logging.getLogger("myoneAI.monitoring.processes")
 
 
-def get_top_processes(limit: int = 5, sort_by: str = "memory") -> List[ProcessItem]:
-    """Retrieve top resource-consuming processes.
-
-    Args:
-        limit: Number of top processes to return (default 5).
-        sort_by: Metric to sort by ('memory' or 'cpu').
-
-    Returns:
-        List of ProcessItem dataclasses.
-    """
+def _scan_processes() -> List[ProcessItem]:
+    """Single-pass scan of running system processes."""
     items: List[ProcessItem] = []
-    total_count = 0
-
     try:
         for proc in psutil.process_iter(["pid", "name", "memory_percent", "memory_info", "cpu_percent"]):
-            total_count += 1
             try:
                 info = proc.info
                 name = info.get("name") or "unknown"
@@ -46,20 +36,29 @@ def get_top_processes(limit: int = 5, sort_by: str = "memory") -> List[ProcessIt
                 ))
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
-
-        if sort_by.lower() == "cpu":
-            items.sort(key=lambda p: p.cpu_percent, reverse=True)
-        else:
-            items.sort(key=lambda p: p.memory_mb, reverse=True)
-
-        return items[:limit]
     except Exception as exc:
-        logger.error("Failed to query top processes: %s", exc)
-        return []
+        logger.error("Failed to query processes: %s", exc)
+    return items
+
+
+def get_top_processes(limit: int = 5, sort_by: str = "memory") -> List[ProcessItem]:
+    """Retrieve top resource-consuming processes.
+
+    Args:
+        limit: Number of top processes to return (default 5).
+        sort_by: Metric to sort by ('memory' or 'cpu').
+
+    Returns:
+        List of ProcessItem dataclasses.
+    """
+    items = _scan_processes()
+    if sort_by.lower() == "cpu":
+        return heapq.nlargest(limit, items, key=lambda p: p.cpu_percent)
+    return heapq.nlargest(limit, items, key=lambda p: p.memory_mb)
 
 
 def get_process_metrics(limit: int = 5) -> ProcessMetrics:
-    """Collect overview of top memory and top CPU processes.
+    """Collect overview of top memory and top CPU processes in a single pass.
 
     Args:
         limit: Maximum number of processes per category.
@@ -67,9 +66,10 @@ def get_process_metrics(limit: int = 5) -> ProcessMetrics:
     Returns:
         ProcessMetrics instance.
     """
-    top_mem = get_top_processes(limit=limit, sort_by="memory")
-    top_cpu = get_top_processes(limit=limit, sort_by="cpu")
-    total_procs = len(psutil.pids()) if hasattr(psutil, "pids") else len(top_mem)
+    items = _scan_processes()
+    top_mem = heapq.nlargest(limit, items, key=lambda p: p.memory_mb)
+    top_cpu = heapq.nlargest(limit, items, key=lambda p: p.cpu_percent)
+    total_procs = len(items)
 
     return ProcessMetrics(
         top_memory=top_mem,

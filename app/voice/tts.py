@@ -14,8 +14,6 @@ from dataclasses import dataclass
 from typing import Optional, Union
 import numpy as np
 
-import edge_tts
-
 from app.core.config import get_settings
 from app.core.events import VoiceEvent, event_bus
 from app.voice.audio import AudioPlayer, audio_player
@@ -144,6 +142,7 @@ class EdgeTTSProvider(BaseTTS):
         logger.debug("Synthesizing with EdgeTTS [Voice: %s, Rate: %s]: '%s'", target_voice, rate_str, text[:50])
 
         try:
+            import edge_tts
             communicate = edge_tts.Communicate(
                 text=text,
                 voice=target_voice,

@@ -25,6 +25,10 @@ class OfflineEventQueue:
         self._lock = threading.Lock()
         self._filter = SensitiveDataFilter()
 
+    def __len__(self) -> int:
+        """Return number of queued messages."""
+        return self.size
+
     @property
     def size(self) -> int:
         """Return current number of queued messages."""
