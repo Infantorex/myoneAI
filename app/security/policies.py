@@ -73,7 +73,7 @@ FORBIDDEN_SYSTEM_PATHS: List[Path] = [
 # 4. Forbidden Shell & Destructive Command Keywords
 # ------------------------------------------------------------------------------
 FORBIDDEN_COMMAND_PATTERNS = [
-    re.compile(r"(?i)\b(?:format|del|rmdir|reg\s+(?:add|delete)|cacls|icacls|net\s+user|powershell|cmd(?:\.exe)?|bash|wscript|cscript|shutdown)\b"),
+    re.compile(r"(?i)\b(?:format|del|rmdir|reg\s+(?:add|delete)|cacls|icacls|net\s+user|powershell|cmd(?:\.exe)?|bash|wscript|cscript|shutdown|taskkill|curl|wget|certutil|bitsadmin)\b"),
     re.compile(r"(?i)\b(?:drop\s+table|mkfs|dd\s+if=|:\(\)\{ :\|:& \};:)\b"),
 ]
 
@@ -144,7 +144,7 @@ def is_path_blocked(target_path: Union[str, Path]) -> bool:
     """Check if path targets sensitive system directories or credentials."""
     try:
         path_str = str(target_path).lower().replace("/", "\\")
-        for sensitive in [".ssh", ".aws", "credentials", "id_rsa", "system32", "syswow64", "\\windows", "c:\\windows", "program files"]:
+        for sensitive in [".ssh", ".aws", "credentials", "id_rsa", "system32", "syswow64", "\\windows", "c:\\windows", "program files", "\\etc\\", "\\var\\", "\\root\\", "\\etc", "\\var"]:
             if sensitive in path_str:
                 return True
         resolved = Path(target_path).resolve()
