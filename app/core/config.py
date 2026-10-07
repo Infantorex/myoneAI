@@ -33,10 +33,15 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", description="Logging verbosity level")
     log_file: str = Field(default="logs/jarvis.log", description="Relative or absolute log path")
 
-    # AI Provider Settings (Cloud API)
-    ai_provider: str = Field(default="gemini", description="AI provider (gemini, openai, etc.)")
+    # AI Provider Settings (Cloud API - Zero local LLMs)
+    ai_provider: str = Field(default="gemini", description="AI provider (gemini, openai, groq, mock)")
     ai_api_key: Optional[str] = Field(default=None, description="AI Cloud API key")
     ai_model: str = Field(default="gemini-1.5-flash", description="AI model name")
+    ai_base_url: Optional[str] = Field(default=None, description="Custom base URL for OpenAI-compatible providers")
+    ai_timeout: float = Field(default=30.0, description="AI inference request timeout in seconds")
+    ai_temperature: float = Field(default=0.7, description="AI sampling temperature")
+    ai_max_output_tokens: int = Field(default=500, description="Max generated tokens for concise speech")
+    ai_max_history_messages: int = Field(default=12, description="Maximum conversation history turns retained")
 
     # Speech-to-Text (STT) Settings
     stt_provider: str = Field(default="google", description="STT provider (google, groq, mock)")
