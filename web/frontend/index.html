@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>myoneAI — Tamil JARVIS Dashboard</title>
+  <meta name="description" content="Local lightweight web dashboard for controlling and viewing myoneAI Tamil JARVIS assistant.">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Left Navigation Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">J</div>
+        <div>
+          <div class="brand-title">myoneAI</div>
+          <div class="brand-subtitle">Tamil JARVIS</div>
+        </div>
+      </div>
+      <ul class="nav-links">
+        <li><a class="nav-item active" id="nav-dashboard" data-tab="dashboard"><span class="icon">📊</span> Dashboard</a></li>
+        <li><a class="nav-item" id="nav-assistant" data-tab="assistant"><span class="icon">🎙️</span> Assistant</a></li>
+        <li><a class="nav-item" id="nav-tasks" data-tab="tasks"><span class="icon">📋</span> Tasks</a></li>
+        <li><a class="nav-item" id="nav-reminders" data-tab="reminders"><span class="icon">⏰</span> Reminders</a></li>
+        <li><a class="nav-item" id="nav-notes" data-tab="notes"><span class="icon">📝</span> Notes</a></li>
+        <li><a class="nav-item" id="nav-memory" data-tab="memory"><span class="icon">🧠</span> Memory</a></li>
+        <li><a class="nav-item" id="nav-system" data-tab="system"><span class="icon">💻</span> System</a></li>
+        <li><a class="nav-item" id="nav-settings" data-tab="settings"><span class="icon">⚙️</span> Settings</a></li>
+      </ul>
+      <div class="sidebar-footer">
+        <div>Host: 127.0.0.1:8000</div>
+        <div>Local Only • Phase 11</div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <div class="main-wrapper">
+      <!-- Top Bar Header -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <h1 class="page-title" id="page-title">Dashboard</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="status-badge idle" id="assistant-status-badge">
+            <span class="status-dot"></span>
+            <span id="assistant-status-text">IDLE</span>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="pollStatus()">↻ Refresh</button>
+        </div>
+      </header>
+
+      <!-- Toast Notification Anchor -->
+      <div id="toast-container" style="position:fixed; top:20px; right:24px; z-index:9999;"></div>
+
+      <!-- Content Views -->
+      <main class="content-area">
+        
+        <!-- ========================================== -->
+        <!-- 1. DASHBOARD HOME VIEW                     -->
+        <!-- ========================================== -->
+        <section class="view-section active" id="view-dashboard">
+          <!-- System Quick Telemetry Cards -->
+          <div class="grid-cards">
+            <div class="card">
+              <div class="card-header"><span class="card-title">CPU Utilization</span></div>
+              <div class="metric-value" id="cpu-value">--%</div>
+              <div class="progress-bar-bg"><div class="progress-bar-fill" id="cpu-bar" style="width:0%;"></div></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><span class="card-title">Memory (RAM)</span></div>
+              <div class="metric-value" id="ram-value">--%</div>
+              <div class="progress-bar-bg"><div class="progress-bar-fill" id="ram-bar" style="width:0%;"></div></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><span class="card-title">Disk Storage</span></div>
+              <div class="metric-value" id="disk-value">--%</div>
+              <div class="progress-bar-bg"><div class="progress-bar-fill" id="disk-bar" style="width:0%;"></div></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><span class="card-title">Battery Level</span></div>
+              <div class="metric-value" id="battery-value">--%</div>
+              <div class="progress-bar-bg"><div class="progress-bar-fill" id="battery-bar" style="width:0%;"></div></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><span class="card-title">Network Connectivity</span></div>
+              <div class="metric-value" id="network-value" style="font-size:24px;">Checking...</div>
+              <div class="metric-sub">Local Loopback Verified</div>
+            </div>
+          </div>
+
+          <!-- Productivity & Memory Summary -->
+          <div class="grid-2col">
+            <div class="card">
+              <div class="card-header">
+                <span class="card-title">Today's Tasks Preview</span>
+                <button class="btn btn-secondary btn-sm" onclick="switchTab('tasks')">View All</button>
+              </div>
+              <div id="home-tasks-summary" style="display:flex; flex-direction:column; gap:8px;">
+                <p class="text-muted">Loading tasks...</p>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <span class="card-title">Memory Store</span>
+                <button class="btn btn-secondary btn-sm" onclick="switchTab('memory')">Manage</button>
+              </div>
+              <div style="margin: 12px 0;">
+                <div class="metric-value" id="home-memory-count">-- items</div>
+                <div class="metric-sub">Controlled structured memory records stored locally in SQLite.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Activity Stream -->
+          <div class="card" style="margin-top:20px;">
+            <div class="card-header">
+              <span class="card-title">Recent Activity Feed</span>
+              <button class="btn btn-secondary btn-sm" onclick="loadActivityFeed()">↻</button>
+            </div>
+            <ul class="activity-feed" id="activity-feed-list">
+              <li class="activity-item">
+                <span class="activity-time">--:--:--</span>
+                <span class="activity-text">Loading events...</span>
+              </li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- 2. ASSISTANT & CHAT VIEW                   -->
+        <!-- ========================================== -->
+        <section class="view-section" id="view-assistant">
+          <div class="grid-2col">
+            <!-- Left: JARVIS Orb Visualizer & Voice Controls -->
+            <div class="card orb-container">
+              <div class="jarvis-orb" id="jarvis-orb"></div>
+              <h2 id="orb-state-text" style="font-size:18px; margin-bottom:12px; color:#fff;">JARVIS is IDLE</h2>
+              <p class="metric-sub" style="margin-bottom:20px;">Continuous offline/online voice assistant on Windows laptop.</p>
+              
+              <div style="display:flex; gap:12px;">
+                <button class="btn btn-primary" onclick="setAssistantState('start')">🎙️ Activate Voice</button>
+                <button class="btn btn-secondary" onclick="setAssistantState('stop')">⏹ Set Idle</button>
+              </div>
+            </div>
+
+            <!-- Right: Text Chat Interface -->
+            <div class="chat-container">
+              <div class="card-header" style="padding:14px 18px; border-bottom:1px solid var(--border-subtle); margin-bottom:0;">
+                <span class="card-title">Chat with JARVIS</span>
+                <button class="btn btn-secondary btn-sm" onclick="clearChatHistory()">Clear</button>
+              </div>
+              <div class="chat-messages" id="chat-messages">
+                <div class="chat-bubble assistant">
+                  <span class="meta">JARVIS</span>
+                  <div class="bubble-text">வணக்கம் Infanto! I am ready to assist you. Ask questions or command tasks.</div>
+                </div>
+              </div>
+              <form class="chat-input-bar" id="chat-form">
+                <input type="text" class="chat-input" id="chat-input" placeholder="Type a message (e.g. How is my laptop?)..." maxlength="2000" autocomplete="off" required>
+                <button type="submit" class="btn btn-primary">Send</button>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- 3. TASKS VIEW                              -->
+        <!-- ========================================== -->
+        <section class="view-section" id="view-tasks">
+          <div class="grid-2col">
+            <!-- Create Task Form -->
+            <div class="card">
+              <div class="card-header"><span class="card-title">Create New Task</span></div>
+              <form id="task-form">
+                <div class="form-group">
+                  <label class="form-label" for="task-title-input">Task Title</label>
+                  <input type="text" class="form-input" id="task-title-input" placeholder="e.g. Finish Phase 11 tests" required maxlength="256">
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="task-desc-input">Description</label>
+                  <textarea class="form-textarea" id="task-desc-input" rows="3" placeholder="Optional task details..."></textarea>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="task-priority-input">Priority</label>
+                  <select class="form-select" id="task-priority-input">
+                    <option value="LOW">LOW</option>
+                    <option value="MEDIUM" selected>MEDIUM</option>
+                    <option value="HIGH">HIGH</option>
+                    <option value="CRITICAL">CRITICAL</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="task-due-input">Due Date / Time</label>
+                  <input type="text" class="form-input" id="task-due-input" placeholder="e.g. Tomorrow at 5 PM or ISO string">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;">Create Task</button>
+              </form>
+            </div>
+
+            <!-- Task List -->
+            <div>
+              <div class="card-header" style="margin-bottom:12px;">
+                <span class="card-title">All Tasks</span>
+                <button class="btn btn-secondary btn-sm" onclick="loadTasks()">↻ Refresh</button>
+              </div>
+              <div id="tasks-list">
+                <p class="text-muted">Loading tasks...</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- 4. REMINDERS VIEW                          -->
+        <!-- ========================================== -->
+        <section class="view-section" id="view-reminders">
+          <div class="grid-2col">
+            <!-- Create Reminder Form -->
+            <div class="card">
+              <div class="card-header"><span class="card-title">Schedule Reminder</span></div>
+              <form id="reminder-form">
+                <div class="form-group">
+                  <label class="form-label" for="reminder-msg-input">Reminder Message</label>
+                  <input type="text" class="form-input" id="reminder-msg-input" placeholder="e.g. Submit project status at 6 PM" required maxlength="500">
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="reminder-time-input">Trigger Time</label>
+                  <input type="text" class="form-input" id="reminder-time-input" placeholder="e.g. in 30 minutes, or leave blank to auto-detect">
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="reminder-recurrence-input">Recurrence</label>
+                  <select class="form-select" id="reminder-recurrence-input">
+                    <option value="NONE" selected>One-time (NONE)</option>
+                    <option value="DAILY">DAILY</option>
+                    <option value="WEEKDAYS">WEEKDAYS</option>
+                    <option value="WEEKLY">WEEKLY</option>
+                  </select>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;">Schedule Reminder</button>
+              </form>
+            </div>
+
+            <!-- Reminders List -->
+            <div>
+              <div class="card-header" style="margin-bottom:12px;">
+                <span class="card-title">Active Reminders</span>
+                <button class="btn btn-secondary btn-sm" onclick="loadReminders()">↻ Refresh</button>
+              </div>
+              <div id="reminders-list">
+                <p class="text-muted">Loading reminders...</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- 5. NOTES VIEW                              -->
+        <!-- ========================================== -->
+        <section class="view-section" id="view-notes">
+          <div class="grid-2col">
+            <!-- Create Note Form -->
+            <div class="card">
+              <div class="card-header"><span class="card-title">Take a Note</span></div>
+              <form id="note-form">
+                <div class="form-group">
+                  <label class="form-label" for="note-title-input">Note Title</label>
+                  <input type="text" class="form-input" id="note-title-input" placeholder="e.g. Architecture Decisions" required maxlength="256">
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="note-content-input">Content</label>
+                  <textarea class="form-textarea" id="note-content-input" rows="6" placeholder="Write your note here..." required></textarea>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="note-tags-input">Tags (comma-separated)</label>
+                  <input type="text" class="form-input" id="note-tags-input" placeholder="e.g. ai, project, meeting">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;">Save Note</button>
+              </form>
+            </div>
+
+            <!-- Notes List & Search -->
+            <div>
+              <div class="form-group">
+                <input type="text" class="form-input" id="note-search-input" placeholder="🔍 Search notes by keyword...">
+              </div>
+              <div id="notes-list">
+                <p class="text-muted">Loading notes...</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- 6. MEMORY VIEW                             -->
+        <!-- ========================================== -->
+        <section class="view-section" id="view-memory">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <span class="card-title">Controlled AI Long-Term Memory</span>
+                <div class="metric-sub" id="memory-total-count" style="margin-top:4px;">0 saved memories</div>
+              </div>
+              <div style="display:flex; gap:10px;">
+                <button class="btn btn-secondary btn-sm" onclick="loadMemory()">↻ Refresh</button>
+                <button class="btn btn-danger btn-sm" onclick="handleClearAllMemories()">Clear All Memories</button>
+              </div>
+            </div>
+            <div class="table-responsive" style="margin-top:16px;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Category</th>
+                    <th>Key</th>
+                    <th>Value</th>
+                    <th>Updated</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="memory-table-body">
+                  <tr>
+                    <td colspan="5" class="text-muted">Loading memories...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- 7. SYSTEM TELEMETRY & DIAGNOSIS            -->
+        <!-- ========================================== -->
+        <section class="view-section" id="view-system">
+          <div class="card" style="margin-bottom:20px;">
+            <div class="card-header">
+              <span class="card-title">System Health Diagnostics</span>
+              <button class="btn btn-secondary btn-sm" onclick="loadSystemDiagnosis()">Run Diagnostics</button>
+            </div>
+            <div id="system-warnings" style="margin-top:10px;">
+              <span class="badge badge-low">All system metrics normal.</span>
+            </div>
+          </div>
+
+          <div class="grid-2col">
+            <!-- Top CPU Processes -->
+            <div class="card">
+              <div class="card-header"><span class="card-title">Top CPU-Consuming Processes</span></div>
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>PID</th>
+                      <th>Name</th>
+                      <th>CPU %</th>
+                      <th>RAM</th>
+                    </tr>
+                  </thead>
+                  <tbody id="top-cpu-tbody">
+                    <tr><td colspan="4" class="text-muted">Loading processes...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Top Memory Processes -->
+            <div class="card">
+              <div class="card-header"><span class="card-title">Top Memory-Consuming Processes</span></div>
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>PID</th>
+                      <th>Name</th>
+                      <th>RAM (MB)</th>
+                      <th>RAM %</th>
+                    </tr>
+                  </thead>
+                  <tbody id="top-mem-tbody">
+                    <tr><td colspan="4" class="text-muted">Loading processes...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- 8. SETTINGS VIEW                           -->
+        <!-- ========================================== -->
+        <section class="view-section" id="view-settings">
+          <div class="grid-2col">
+            <!-- General System Configuration -->
+            <div class="card">
+              <div class="card-header"><span class="card-title">Dashboard & Assistant Information</span></div>
+              <div style="margin-bottom:14px;">
+                <div class="form-label">Application</div>
+                <div id="settings-app-info" style="font-weight:600; color:#fff;">myoneAI JARVIS</div>
+              </div>
+              <div style="margin-bottom:14px;">
+                <div class="form-label">Local Authentication Mode</div>
+                <div id="settings-auth-status" style="font-weight:600;">CHECKING...</div>
+              </div>
+              <div style="margin-bottom:14px;">
+                <div class="form-label">Telemetry Refresh Rate</div>
+                <div style="color:var(--text-secondary);">10 Seconds (Low Power Polling)</div>
+              </div>
+              <div style="margin-bottom:14px;">
+                <div class="form-label">Binding Network Interface</div>
+                <div style="color:var(--text-secondary);">127.0.0.1 (Strict Localhost Only)</div>
+              </div>
+            </div>
+
+            <!-- Token Management Form -->
+            <div class="card">
+              <div class="card-header"><span class="card-title">API Authentication Token</span></div>
+              <p class="metric-sub" style="margin-bottom:14px;">
+                If <code>WEB_AUTH_ENABLED=true</code> is set in <code>.env</code>, enter your bearer token below. It will be stored in your browser's local session.
+              </p>
+              <form id="token-form">
+                <div class="form-group">
+                  <label class="form-label" for="settings-token-input">Bearer Token</label>
+                  <input type="password" class="form-input" id="settings-token-input" placeholder="Paste your WEB_AUTH_TOKEN here...">
+                </div>
+                <button type="submit" class="btn btn-primary">Save Token</button>
+              </form>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

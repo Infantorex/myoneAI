@@ -25,8 +25,11 @@ class Settings(BaseSettings):
     )
 
     # General App Settings
+    app_name: str = Field(default="myoneAI", description="Application name")
+    app_version: str = Field(default="1.0.0", description="Application version")
     app_env: str = Field(default="development", description="Application environment")
     jarvis_name: str = Field(default="JARVIS", description="Assistant identity name")
+    language: str = Field(default="ta-IN", description="Default spoken language code")
     default_language: str = Field(default="ta-IN", description="Default spoken language code")
 
     # Logging Settings
@@ -129,7 +132,14 @@ class Settings(BaseSettings):
     max_missed_reminders_on_startup: int = Field(default=5, description="Maximum past due reminders to trigger on startup recovery")
     productivity_timezone: str = Field(default="", description="Optional timezone override (e.g. Asia/Kolkata); defaults to system local timezone")
 
-    # Web Dashboard Settings
+    # Web Dashboard Settings (Phase 11)
+    web_enabled: bool = Field(default=True, description="Enable local web dashboard and API")
+    web_host: str = Field(default="127.0.0.1", description="Local web server host IP (localhost only)")
+    web_port: int = Field(default=8000, description="Local web server port")
+    web_auth_enabled: bool = Field(default=True, description="Enable token authentication for web API")
+    web_auth_token: str = Field(default="", description="Secret bearer token for authenticating web dashboard")
+    web_status_refresh_seconds: int = Field(default=10, description="Client status refresh interval in seconds")
+    web_chat_max_length: int = Field(default=2000, description="Maximum characters allowed in web chat messages")
     web_api_url: str = Field(default="http://localhost:8000", description="Backend/Vercel API URL")
 
     # Directories
@@ -172,7 +182,7 @@ class Settings(BaseSettings):
     def get_safe_dict(self) -> dict:
         """Return dictionary representation with sensitive credentials masked."""
         data = self.model_dump()
-        for key in ["ai_api_key", "stt_api_key", "tts_api_key", "wake_word_api_key"]:
+        for key in ["ai_api_key", "stt_api_key", "tts_api_key", "wake_word_api_key", "web_auth_token"]:
             val = data.get(key)
             if val:
                 masked = f"{val[:4]}...{val[-4:]}" if len(val) > 8 else "***"
