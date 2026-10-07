@@ -101,12 +101,26 @@ class Settings(BaseSettings):
     screenshot_directory: str = Field(default="data/screenshots", description="Directory path to save screenshots")
     screenshot_retention_days: int = Field(default=7, description="Number of days to retain screenshots before cleanup")
 
+    # Lightweight System Monitoring & Alerts (Phase 9)
+    monitoring_enabled: bool = Field(default=True, description="Enable lightweight system monitoring & alerts")
+    monitoring_interval_seconds: int = Field(default=60, description="Background monitoring check interval in seconds")
+    cpu_warning_threshold: float = Field(default=85.0, description="CPU usage percent warning threshold")
+    cpu_critical_threshold: float = Field(default=95.0, description="CPU usage percent critical threshold")
+    memory_warning_threshold: float = Field(default=80.0, description="Memory usage percent warning threshold")
+    memory_critical_threshold: float = Field(default=90.0, description="Memory usage percent critical threshold")
+    disk_warning_threshold: float = Field(default=85.0, description="Disk usage percent warning threshold")
+    disk_critical_threshold: float = Field(default=95.0, description="Disk usage percent critical threshold")
+    battery_low_threshold: float = Field(default=20.0, description="Battery percent low/warning threshold")
+    battery_critical_threshold: float = Field(default=10.0, description="Battery percent critical threshold")
+    alert_cooldown_seconds: int = Field(default=300, description="Cooldown period in seconds to suppress duplicate alerts")
+
     # AI Memory Settings (Phase 7)
     memory_enabled: bool = Field(default=True, description="Enable long-term controlled AI memory")
     memory_max_results: int = Field(default=5, description="Maximum relevant memory items retrieved for AI prompt context")
     memory_max_context_chars: int = Field(default=3000, description="Maximum total character length for memory prompt context")
     memory_require_confirmation: bool = Field(default=True, description="Require confirmation before clear/destructive memory actions")
     memory_database_path: str = Field(default="data/memory.db", description="SQLite database path for structured memories")
+
 
     # Web Dashboard Settings
     web_api_url: str = Field(default="http://localhost:8000", description="Backend/Vercel API URL")

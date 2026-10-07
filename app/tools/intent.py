@@ -1,4 +1,4 @@
-"""Natural language intent detection and parser for PC Tools (Phase 8).
+"""Natural language intent detection and parser for PC Tools (Phase 8 & 9).
 
 Translates Tamil, English, and mixed Tanglish spoken commands into structured ToolCalls.
 """
@@ -32,7 +32,29 @@ def parse_tool_intent(user_text: str) -> Optional[ToolCall]:
     if is_command_blocked(clean):
         return ToolCall(tool="execute_shell", arguments={"raw_command": clean})
 
-    # 2. Application Launching ("Open Chrome", "Chrome open பண்ணு", "Open Calculator")
+    # 2. Performance & Slowness Diagnosis ("Why is my laptop slow?", "லேப்டாப் ஏன் ஸ்லோவா இருக்கு?")
+    if (
+        re.search(r"(?i)\b(?:why\s+is\s+(?:my\s+)?(?:laptop|pc|computer|system)\s+slow|laptop\s+slow|pc\s+slow|diagnose\s+(?:laptop|system|pc))\b", clean_lower)
+        or re.search(r"(?i)(?:லேப்டாப்|சிஸ்டம்)\s+(?:ஏன்\s+)?(?:ஸ்லோவா|மெதுவாக)\s+இருக்கு", clean)
+    ):
+        return ToolCall(tool="diagnose_system_performance", arguments={})
+
+    # 3. Top Resource Consuming Processes ("Which app is using the most RAM?", "What's using most memory?")
+    if (
+        re.search(r"(?i)\b(?:which\s+app\s+is\s+using\s+the\s+most\s+(?:ram|memory|cpu)|what(?:'s|\s+is)\s+using\s+(?:the\s+)?most\s+(?:ram|memory|cpu)|top\s+processes|top\s+apps)\b", clean_lower)
+        or re.search(r"(?i)(?:எந்த\s+ஆப்|எந்த\s+செயலி)\s+அதிக\s+(?:ram|நினைவகம்|cpu)", clean)
+    ):
+        sort_by = "cpu" if "cpu" in clean_lower else "memory"
+        return ToolCall(tool="get_top_processes", arguments={"limit": 5, "sort_by": sort_by})
+
+    # 4. Network Status ("Am I connected to the internet?", "Check internet", "Network status", "Internet connected-ஆ?")
+    if (
+        re.search(r"(?i)\b(?:am\s+i\s+connected\s+to\s+(?:the\s+)?internet|check\s+(?:network|internet|connection)|network\s+status|internet\s+status|is\s+internet\s+working)\b", clean_lower)
+        or re.search(r"(?i)(?:இணைய\s+இணைப்பு|internet\s+(?:இருக்கா|connected-ஆ))", clean)
+    ):
+        return ToolCall(tool="get_network_status", arguments={})
+
+    # 5. Application Launching ("Open Chrome", "Chrome open பண்ணு", "Open Calculator")
     app_open_match = re.search(
         r"(?i)\b(?:open|launch|start|run)\s+(?:application\s+)?([a-zA-Z0-9_\-\s]+)",
         clean,
@@ -42,17 +64,15 @@ def parse_tool_intent(user_text: str) -> Optional[ToolCall]:
         clean,
     )
 
-    if (app_open_match or tamil_app_open) and not re.search(r"(?i)\b(?:website|site|url|folder|file|screenshot)\b", clean_lower):
+    if (app_open_match or tamil_app_open) and not re.search(r"(?i)\b(?:website|site|url|folder|file|screenshot|system|ram|cpu|disk|battery|network)\b", clean_lower):
         raw_app = app_open_match.group(1).strip() if app_open_match else tamil_app_open.group(1).strip()
-        # Clean common trailing words
         raw_app = re.sub(r"(?i)\b(?:please|now|app|application)\b", "", raw_app).strip()
         if raw_app and len(raw_app) < 30:
-            # Check if it's a website like youtube.com
             if "." in raw_app and not raw_app.endswith((".exe", ".app")):
                 return ToolCall(tool="open_website", arguments={"url": raw_app})
             return ToolCall(tool="open_application", arguments={"application": raw_app.lower()})
 
-    # 3. Application Termination ("Close Chrome", "Chrome close பண்ணு")
+    # 6. Application Termination ("Close Chrome", "Chrome close பண்ணு")
     app_close_match = re.search(
         r"(?i)\b(?:close|quit|exit|terminate|kill)\s+(?:application\s+)?([a-zA-Z0-9_\-\s]+)",
         clean,
@@ -67,8 +87,7 @@ def parse_tool_intent(user_text: str) -> Optional[ToolCall]:
         if raw_app and len(raw_app) < 30:
             return ToolCall(tool="close_application", arguments={"application": raw_app.lower()})
 
-
-    # 4. Web Search ("Search Google for Python tutorials", "Search for weather")
+    # 7. Web Search ("Search Google for Python tutorials", "Search for weather")
     search_match = re.search(
         r"(?i)\b(?:search\s+(?:google\s+)?(?:for\s+)?|google\s+)(.+)",
         clean,
@@ -82,7 +101,7 @@ def parse_tool_intent(user_text: str) -> Optional[ToolCall]:
         if q and not re.search(r"(?i)\b(?:memory|memories)\b", q):
             return ToolCall(tool="search_web_browser", arguments={"query": q})
 
-    # 5. Open Website ("Open YouTube", "Open github.com", "Open https://...")
+    # 8. Open Website ("Open YouTube", "Open github.com", "Open https://...")
     web_match = re.search(
         r"(?i)\b(?:open\s+(?:website|site|url)\s+|go\s+to\s+)([a-zA-Z0-9_\-\.:/]+)",
         clean,
@@ -91,11 +110,11 @@ def parse_tool_intent(user_text: str) -> Optional[ToolCall]:
         url_target = web_match.group(1).strip()
         return ToolCall(tool="open_website", arguments={"url": url_target})
 
-    # 6. Screenshot ("Take a screenshot", "Screenshot எடு", "Capture screen")
+    # 9. Screenshot ("Take a screenshot", "Screenshot எடு", "Capture screen")
     if re.search(r"(?i)\b(?:take\s+(?:a\s+)?screenshot|capture\s+screen|screen\s+capture)\b|screenshot\s+எடு", clean_lower):
         return ToolCall(tool="take_screenshot", arguments={})
 
-    # 7. Media & Volume Controls
+    # 10. Media & Volume Controls
     if re.search(r"(?i)\b(?:volume\s+up|increase\s+volume|raise\s+volume)\b|volume\s+(?:கூட்டு|அதிகரி)", clean_lower):
         return ToolCall(tool="volume_up", arguments={"step_percent": 10})
 
@@ -114,23 +133,42 @@ def parse_tool_intent(user_text: str) -> Optional[ToolCall]:
     if re.search(r"(?i)\b(?:previous\s+track|prev\s+song)\b|முந்தைய\s+பாடல்", clean_lower):
         return ToolCall(tool="media_previous", arguments={})
 
-    # 8. System Telemetry
-    if re.search(r"(?i)\b(?:battery\s+status|battery\s+percentage|how\s+much\s+battery)\b|battery\s+(?:எவ்வளவு|status)", clean_lower):
+    # 11. Battery Status ("Jarvis, check battery", "battery status", "பேட்டரி எவ்வளவு?", "battery எவ்வளவு?")
+    if (
+        re.search(r"(?i)\b(?:check\s+battery|battery\s+status|battery\s+percentage|how\s+much\s+battery|battery\s+level|what(?:'s|\s+is)\s+my\s+battery)\b", clean_lower)
+        or re.search(r"(?i)(?:பேட்டரி|battery)\s+(?:எவ்வளவு|status|நிலை|இருக்க)", clean)
+    ):
         return ToolCall(tool="get_battery_status", arguments={})
 
-    if re.search(r"(?i)\b(?:cpu\s+usage|cpu\s+load|processor\s+usage)\b|cpu\s+(?:பயன்பாடு|usage)", clean_lower):
+    # 12. CPU Status ("Jarvis, what's my CPU usage?", "check cpu", "cpu usage")
+    if (
+        re.search(r"(?i)\b(?:check\s+cpu|cpu\s+usage|cpu\s+load|processor\s+usage|what(?:'s|\s+is)\s+my\s+cpu\s+usage)\b", clean_lower)
+        or re.search(r"(?i)cpu\s*(?:பயன்பாடு|usage|எவ்வளவு|நிலை)", clean)
+    ):
         return ToolCall(tool="get_cpu_usage", arguments={})
 
-    if re.search(r"(?i)\b(?:ram\s+usage|memory\s+usage|how\s+much\s+ram)\b|ram\s+(?:பயன்பாடு|usage)", clean_lower):
+    # 13. RAM / Memory Status ("How much RAM am I using?", "check ram", "check memory", "ram usage")
+    if (
+        re.search(r"(?i)\b(?:how\s+much\s+ram(?:\s+am\s+i\s+using)?|check\s+ram|check\s+memory|ram\s+usage|memory\s+usage|what(?:'s|\s+is)\s+my\s+ram\s+usage)\b", clean_lower)
+        or re.search(r"(?i)(?:ram|memory)\s*(?:பயன்பாடு|usage|எவ்வளவு|நிலை|என்ன)", clean)
+    ):
         return ToolCall(tool="get_ram_usage", arguments={})
 
-    if re.search(r"(?i)\b(?:disk\s+usage|disk\s+space|free\s+space|storage\s+usage)\b|disk\s+(?:பயன்பாடு|space)", clean_lower):
+    # 14. Disk Storage Status ("How much storage do I have?", "check disk", "check storage", "disk space", "வட்டு சேமிப்பகம்")
+    if (
+        re.search(r"(?i)\b(?:how\s+much\s+storage(?:\s+do\s+i\s+have)?|check\s+disk|check\s+storage|disk\s+usage|storage\s+usage|disk\s+space|free\s+space)\b", clean_lower)
+        or re.search(r"(?i)(?:disk|வட்டு|சேமிப்பகம்)", clean)
+    ):
         return ToolCall(tool="get_disk_usage", arguments={})
 
-    if re.search(r"(?i)\b(?:system\s+info|system\s+status|how\s+is\s+my\s+laptop\s+performing|system\s+specs)\b|லேப்டாப்\s+நிலை", clean_lower):
-        return ToolCall(tool="get_system_info", arguments={})
+    # 15. Overall System Health ("Jarvis, how is my laptop?", "Check my system", "Check laptop", "System status", "லேப்டாப் நிலை என்ன?")
+    if (
+        re.search(r"(?i)\b(?:how\s+is\s+my\s+laptop|check\s+(?:my\s+)?(?:system|laptop|pc)|system\s+status|system\s+info|system\s+specs)\b", clean_lower)
+        or re.search(r"(?i)லேப்டாப்\s+(?:நிலை|எப்படி\s+இருக்கு)", clean)
+    ):
+        return ToolCall(tool="get_system_status", arguments={})
 
-    # 9. Filesystem Actions ("Open folder", "Open file", "Delete file")
+    # 16. Filesystem Actions ("Open folder", "Open file", "Delete file")
     delete_file_match = re.search(
         r"(?i)\b(?:delete\s+file|remove\s+file|delete)\s+([a-zA-Z0-9_\-\.\/\\]+)",
         clean,

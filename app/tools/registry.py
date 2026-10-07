@@ -1,4 +1,4 @@
-"""Tool registry defining all explicit, allowlisted PC capabilities (Phase 8)."""
+"""Tool registry defining all explicit, allowlisted PC capabilities (Phase 8 & 9)."""
 
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -18,11 +18,18 @@ from app.tools.media import (
 from app.tools.schemas import ToolSchema
 from app.tools.screenshot import take_screenshot
 from app.tools.system import (
+    diagnose_system_performance,
     get_battery_status,
+    get_cpu_status,
     get_cpu_usage,
+    get_disk_status,
     get_disk_usage,
+    get_memory_status,
+    get_network_status,
     get_ram_usage,
     get_system_info,
+    get_system_status,
+    get_top_processes,
 )
 
 
@@ -56,7 +63,6 @@ class ToolRegistry:
     def is_registered(self, name: str) -> bool:
         """Check if tool name is currently registered."""
         return name.lower().strip() in self._tools
-
 
     def get_tools_prompt_description(self) -> str:
         """Format registered tools as a concise prompt context for the AI."""
@@ -238,7 +244,17 @@ class ToolRegistry:
             take_screenshot,
         )
 
-        # 6. System Telemetry
+        # 6. System Monitoring & Telemetry (Phase 8 & 9)
+        self.register(
+            ToolSchema(
+                name="get_system_status",
+                description="Retrieve full system health overview (CPU, RAM, Disk, Battery, Network)",
+                parameters={},
+                required_params=[],
+                permission=PermissionLevel.SAFE,
+            ),
+            get_system_status,
+        )
         self.register(
             ToolSchema(
                 name="get_system_info",
@@ -251,13 +267,13 @@ class ToolRegistry:
         )
         self.register(
             ToolSchema(
-                name="get_battery_status",
-                description="Read battery percentage and charging state",
+                name="get_cpu_status",
+                description="Read active CPU utilization percentage and core count",
                 parameters={},
                 required_params=[],
                 permission=PermissionLevel.SAFE,
             ),
-            get_battery_status,
+            get_cpu_status,
         )
         self.register(
             ToolSchema(
@@ -271,6 +287,16 @@ class ToolRegistry:
         )
         self.register(
             ToolSchema(
+                name="get_memory_status",
+                description="Read RAM memory utilization, used MB, and free capacity",
+                parameters={},
+                required_params=[],
+                permission=PermissionLevel.SAFE,
+            ),
+            get_memory_status,
+        )
+        self.register(
+            ToolSchema(
                 name="get_ram_usage",
                 description="Read memory utilization and free RAM",
                 parameters={},
@@ -281,6 +307,16 @@ class ToolRegistry:
         )
         self.register(
             ToolSchema(
+                name="get_disk_status",
+                description="Read storage disk usage percentage and free gigabytes",
+                parameters={"path": {"type": "string", "description": "Optional drive or path"}},
+                required_params=[],
+                permission=PermissionLevel.SAFE,
+            ),
+            get_disk_status,
+        )
+        self.register(
+            ToolSchema(
                 name="get_disk_usage",
                 description="Read disk storage usage and free space",
                 parameters={},
@@ -288,6 +324,49 @@ class ToolRegistry:
                 permission=PermissionLevel.SAFE,
             ),
             get_disk_usage,
+        )
+        self.register(
+            ToolSchema(
+                name="get_battery_status",
+                description="Read battery percentage, AC adapter status, and charging state",
+                parameters={},
+                required_params=[],
+                permission=PermissionLevel.SAFE,
+            ),
+            get_battery_status,
+        )
+        self.register(
+            ToolSchema(
+                name="get_network_status",
+                description="Check internet connectivity and local network configuration",
+                parameters={"check_latency": {"type": "boolean", "description": "Optional active latency ping"}},
+                required_params=[],
+                permission=PermissionLevel.SAFE,
+            ),
+            get_network_status,
+        )
+        self.register(
+            ToolSchema(
+                name="get_top_processes",
+                description="Identify applications consuming the most RAM or CPU resources",
+                parameters={
+                    "limit": {"type": "integer", "description": "Number of processes to return (default 5)"},
+                    "sort_by": {"type": "string", "description": "Sort metric: 'memory' or 'cpu'"},
+                },
+                required_params=[],
+                permission=PermissionLevel.SAFE,
+            ),
+            get_top_processes,
+        )
+        self.register(
+            ToolSchema(
+                name="diagnose_system_performance",
+                description="Analyze system bottlenecks (RAM, CPU, Disk, Battery) and provide actionable suggestions for slowness",
+                parameters={},
+                required_params=[],
+                permission=PermissionLevel.SAFE,
+            ),
+            diagnose_system_performance,
         )
 
 
@@ -314,4 +393,3 @@ def register_tool(
         timeout_sec=timeout_sec,
     )
     tool_registry.register(schema, handler)
-
